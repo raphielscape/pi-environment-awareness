@@ -26,7 +26,7 @@ pi install npm:pi-environment-awareness
 
 ### From GitHub
 ```bash
-pi install git:github.com/YOUR_USERNAME/pi-environment-awareness@v1
+pi install git:github.com/raphielscape/pi-environment-awareness@v1
 ```
 
 ### From local path (development)
