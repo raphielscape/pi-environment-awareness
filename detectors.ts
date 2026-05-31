@@ -242,7 +242,10 @@ function detectProjectContext(cwd: string): Record<string, string> {
 	const context: Record<string, string> = {};
 
 	// JavaScript/TypeScript ecosystem
-	if (existsSync(join(cwd, "bun.lockb")) || existsSync(join(cwd, "bunfig.toml"))) {
+	if (
+		existsSync(join(cwd, "bun.lockb")) ||
+		existsSync(join(cwd, "bunfig.toml"))
+	) {
 		context.js_runtime = "bun";
 		context.js_lockfile = "bun.lockb";
 	} else if (existsSync(join(cwd, "pnpm-lock.yaml"))) {
@@ -262,9 +265,15 @@ function detectProjectContext(cwd: string): Record<string, string> {
 	}
 
 	// Python ecosystem
-	if (existsSync(join(cwd, "uv.lock")) || existsSync(join(cwd, "pyproject.toml"))) {
+	if (
+		existsSync(join(cwd, "uv.lock")) ||
+		existsSync(join(cwd, "pyproject.toml"))
+	) {
 		context.python_tool = "uv";
-	} else if (existsSync(join(cwd, "requirements.txt")) || existsSync(join(cwd, "setup.py"))) {
+	} else if (
+		existsSync(join(cwd, "requirements.txt")) ||
+		existsSync(join(cwd, "setup.py"))
+	) {
 		context.python_tool = "pip";
 	}
 
@@ -285,7 +294,8 @@ function detectProjectContext(cwd: string): Record<string, string> {
 	// Other ecosystems
 	if (existsSync(join(cwd, "Cargo.toml"))) context.ecosystem = "rust";
 	if (existsSync(join(cwd, "go.mod"))) context.ecosystem = "go";
-	if (existsSync(join(cwd, "pom.xml")) || existsSync(join(cwd, "build.gradle"))) context.ecosystem = "java";
+	if (existsSync(join(cwd, "pom.xml")) || existsSync(join(cwd, "build.gradle")))
+		context.ecosystem = "java";
 
 	return context;
 }
@@ -293,7 +303,10 @@ function detectProjectContext(cwd: string): Record<string, string> {
 /**
  * Detect available development tools and their versions
  */
-function detectTools(cwd: string): { tools: ToolInfo[]; preferences: string[] } {
+function detectTools(cwd: string): {
+	tools: ToolInfo[];
+	preferences: string[];
+} {
 	const toolDefs: Array<{ name: string; cmd: string; versionArg?: string }> = [
 		{ name: "bun", cmd: "bun", versionArg: "--version" },
 		{ name: "node", cmd: "node", versionArg: "--version" },
