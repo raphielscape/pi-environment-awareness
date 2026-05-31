@@ -17,11 +17,22 @@ A [Pi](https://github.com/earendil-works/pi-coding-agent) extension that injects
 
 ## Installation
 
+### From npm (when published)
 ```bash
-# Clone into Pi extensions directory
-git clone https://github.com/YOUR_USERNAME/pi-environment-awareness.git ~/.pi/agent/extensions/environment-awareness
+pi install npm:pi-environment-awareness
+```
 
-# Or symlink for development
+### From GitHub
+```bash
+pi install git:github.com/YOUR_USERNAME/pi-environment-awareness@v1
+```
+
+### From local path (development)
+```bash
+# Add to settings directly
+pi install /path/to/pi-environment-awareness
+
+# Or symlink for live development
 ln -s /path/to/pi-environment-awareness ~/.pi/agent/extensions/environment-awareness
 ```
 

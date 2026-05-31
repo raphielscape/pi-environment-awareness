@@ -9,6 +9,7 @@
     "test": "bun -e \"import { gatherEnvironment, formatEnvironment } from './detectors.ts'; console.log(formatEnvironment(gatherEnvironment(process.cwd())));\""
   },
   "keywords": [
+    "pi-package",
     "pi",
     "extension",
     "environment",
@@ -16,6 +17,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
