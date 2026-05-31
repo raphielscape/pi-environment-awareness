@@ -6,7 +6,7 @@
   "main": "index.ts",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "bun -e \"import { gatherEnvironment, formatEnvironment } from './detectors.ts'; console.log(formatEnvironment(gatherEnvironment(process.cwd())));\""
+    "test": "bun test"
   },
   "keywords": [
     "pi-package",

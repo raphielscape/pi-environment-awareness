@@ -503,5 +503,5 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 		`<locale>\n<timezone>${info.timezone}</timezone>\n<lang>${info.locale}</lang>\n</locale>`,
 	);
 
-	return sections.join("\n");
+	return `<host-environment>\n${sections.join("\n")}\n</host-environment>`;
 }

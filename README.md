@@ -1,3 +1,5 @@
+![banner](assets/wellington.png)
+
 # pi-environment-awareness
 
 A [Pi](https://github.com/earendil-works/pi-coding-agent) extension that injects host environment context into the system prompt, helping the LLM understand the runtime it's working in.
