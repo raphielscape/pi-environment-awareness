@@ -1,0 +1,26 @@
+{
+  "name": "pi-environment-awareness",
+  "version": "1.0.0",
+  "description": "Pi extension that injects host environment context into the system prompt",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun -e \"import { gatherEnvironment, formatEnvironment } from './detectors.ts'; console.log(formatEnvironment(gatherEnvironment(process.cwd())));\""
+  },
+  "keywords": [
+    "pi",
+    "extension",
+    "environment",
+    "system-info"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
