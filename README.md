@@ -11,6 +11,8 @@ A [Pi](https://github.com/earendil-works/pi-coding-agent) extension that injects
 | **Security** | Root/admin user detection (only shown when noteworthy) |
 | **Dev Tools** | Package manager (from lock files) |
 | **Git** | Branch, default branch, dirty/clean status with file count, recent commits |
+| **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc.) |
+| **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip) |
 | **Locale** | Timezone, language |
 
 ## Installation
@@ -55,6 +57,16 @@ The extension automatically:
     <commit>def5678 feat: add login</commit>
 </recent-commits>
 </git>
+<tools>
+  <tool name="bun" version="1.4.0"/>
+  <tool name="node" version="22.0.0"/>
+  <tool name="python3" version="3.12.0"/>
+  <tool name="go" version="1.22.0"/>
+</tools>
+<preferences>
+  <prefer>prefer bun over node</prefer>
+  <prefer>prefer uv over pip</prefer>
+</preferences>
 <locale>
 <timezone>Asia/Tokyo</timezone>
 <lang>en_US.UTF-8</lang>

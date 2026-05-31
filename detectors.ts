@@ -38,11 +38,19 @@ export interface EnvironmentInfo {
 		dirtyFileCount: number;
 		recentCommits: string[];
 	};
+	tools: ToolInfo[];
+	preferences: string[];
 	security: {
 		isRoot: boolean;
 	};
 	timezone: string;
 	locale: string;
+}
+
+export interface ToolInfo {
+	name: string;
+	version: string;
+	path: string;
 }
 
 /**
@@ -227,6 +235,60 @@ function detectGit(cwd: string): EnvironmentInfo["git"] {
 }
 
 /**
+ * Detect available development tools and their versions
+ */
+function detectTools(): { tools: ToolInfo[]; preferences: string[] } {
+	const toolDefs: Array<{ name: string; cmd: string; versionArg?: string }> = [
+		{ name: "bun", cmd: "bun", versionArg: "--version" },
+		{ name: "node", cmd: "node", versionArg: "--version" },
+		{ name: "python3", cmd: "python3", versionArg: "--version" },
+		{ name: "python", cmd: "python", versionArg: "--version" },
+		{ name: "go", cmd: "go", versionArg: "version" },
+		{ name: "rustc", cmd: "rustc", versionArg: "--version" },
+		{ name: "java", cmd: "java", versionArg: "-version" },
+		{ name: "cargo", cmd: "cargo", versionArg: "--version" },
+		{ name: "uv", cmd: "uv", versionArg: "--version" },
+		{ name: "pip", cmd: "pip", versionArg: "--version" },
+		{ name: "docker", cmd: "docker", versionArg: "--version" },
+		{ name: "git", cmd: "git", versionArg: "--version" },
+	];
+
+	const tools: ToolInfo[] = [];
+
+	for (const tool of toolDefs) {
+		const path = safeExec(`which ${tool.cmd}`);
+		if (!path) continue;
+
+		const rawVersion = safeExec(`${tool.cmd} ${tool.versionArg || "--version"}`);
+		if (!rawVersion) continue;
+
+		// Extract version number (e.g., "bun 1.1.4" -> "1.1.4", "node v22.0.0" -> "22.0.0")
+		const versionMatch = rawVersion.match(/(\d+\.\d+\.\d+[\w.-]*)/);
+		const version = versionMatch?.[1] || rawVersion;
+
+		tools.push({ name: tool.name, version, path });
+	}
+
+	// Build preferences based on available tools
+	const preferences: string[] = [];
+	const has = (name: string) => tools.some((t) => t.name === name);
+
+	if (has("bun") && has("node")) {
+		preferences.push("prefer bun over node");
+	} else if (has("bun")) {
+		preferences.push("use bun");
+	}
+
+	if (has("uv") && has("pip")) {
+		preferences.push("prefer uv over pip");
+	} else if (has("uv")) {
+		preferences.push("use uv");
+	}
+
+	return { tools, preferences };
+}
+
+/**
  * Detect security context
  */
 function detectSecurity(): EnvironmentInfo["security"] {
@@ -241,6 +303,7 @@ function detectSecurity(): EnvironmentInfo["security"] {
  */
 export function gatherEnvironment(cwd: string): EnvironmentInfo {
 	const ci = detectCI();
+	const { tools, preferences } = detectTools();
 
 	return {
 		os: detectOS(),
@@ -251,6 +314,8 @@ export function gatherEnvironment(cwd: string): EnvironmentInfo {
 		ciPlatform: ci.platform,
 		packageManager: detectPackageManager(cwd),
 		git: detectGit(cwd),
+		tools,
+		preferences,
 		security: detectSecurity(),
 		timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
 		locale: process.env.LANG || process.env.LC_ALL || "unknown",
@@ -332,6 +397,22 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 		}
 
 		sections.push(`<git>\n${gitLines.join("\n")}\n</git>`);
+	}
+
+	// Tools (available dev tools with versions)
+	if (info.tools.length > 0) {
+		const toolLines = info.tools
+			.map((t) => `  <tool name="${t.name}" version="${t.version}"/>`)
+			.join("\n");
+		sections.push(`<tools>\n${toolLines}\n</tools>`);
+	}
+
+	// Preferences (based on available tools)
+	if (info.preferences.length > 0) {
+		const prefLines = info.preferences
+			.map((p) => `  <prefer>${p}</prefer>`)
+			.join("\n");
+		sections.push(`<preferences>\n${prefLines}\n</preferences>`);
 	}
 
 	// Locale
