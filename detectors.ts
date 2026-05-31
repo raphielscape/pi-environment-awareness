@@ -235,9 +235,65 @@ function detectGit(cwd: string): EnvironmentInfo["git"] {
 }
 
 /**
+ * Detect project context from config/lock files
+ * Source-driven detection: project files take precedence over global tool availability
+ */
+function detectProjectContext(cwd: string): Record<string, string> {
+	const context: Record<string, string> = {};
+
+	// JavaScript/TypeScript ecosystem
+	if (existsSync(join(cwd, "bun.lockb")) || existsSync(join(cwd, "bunfig.toml"))) {
+		context.js_runtime = "bun";
+		context.js_lockfile = "bun.lockb";
+	} else if (existsSync(join(cwd, "pnpm-lock.yaml"))) {
+		context.js_runtime = "node";
+		context.js_lockfile = "pnpm-lock.yaml";
+		context.js_package_manager = "pnpm";
+	} else if (existsSync(join(cwd, "yarn.lock"))) {
+		context.js_runtime = "node";
+		context.js_lockfile = "yarn.lock";
+		context.js_package_manager = "yarn";
+	} else if (existsSync(join(cwd, "package-lock.json"))) {
+		context.js_runtime = "node";
+		context.js_lockfile = "package-lock.json";
+		context.js_package_manager = "npm";
+	} else if (existsSync(join(cwd, "package.json"))) {
+		context.js_runtime = "node";
+	}
+
+	// Python ecosystem
+	if (existsSync(join(cwd, "uv.lock")) || existsSync(join(cwd, "pyproject.toml"))) {
+		context.python_tool = "uv";
+	} else if (existsSync(join(cwd, "requirements.txt")) || existsSync(join(cwd, "setup.py"))) {
+		context.python_tool = "pip";
+	}
+
+	// Version managers
+	if (existsSync(join(cwd, ".nvmrc"))) {
+		context.node_version_file = ".nvmrc";
+	} else if (existsSync(join(cwd, ".node-version"))) {
+		context.node_version_file = ".node-version";
+	} else if (existsSync(join(cwd, ".tool-versions"))) {
+		context.version_manager = "asdf/mise";
+	}
+
+	// Python version
+	if (existsSync(join(cwd, ".python-version"))) {
+		context.python_version_file = ".python-version";
+	}
+
+	// Other ecosystems
+	if (existsSync(join(cwd, "Cargo.toml"))) context.ecosystem = "rust";
+	if (existsSync(join(cwd, "go.mod"))) context.ecosystem = "go";
+	if (existsSync(join(cwd, "pom.xml")) || existsSync(join(cwd, "build.gradle"))) context.ecosystem = "java";
+
+	return context;
+}
+
+/**
  * Detect available development tools and their versions
  */
-function detectTools(): { tools: ToolInfo[]; preferences: string[] } {
+function detectTools(cwd: string): { tools: ToolInfo[]; preferences: string[] } {
 	const toolDefs: Array<{ name: string; cmd: string; versionArg?: string }> = [
 		{ name: "bun", cmd: "bun", versionArg: "--version" },
 		{ name: "node", cmd: "node", versionArg: "--version" },
@@ -259,7 +315,9 @@ function detectTools(): { tools: ToolInfo[]; preferences: string[] } {
 		const path = safeExec(`which ${tool.cmd}`);
 		if (!path) continue;
 
-		const rawVersion = safeExec(`${tool.cmd} ${tool.versionArg || "--version"}`);
+		const rawVersion = safeExec(
+			`${tool.cmd} ${tool.versionArg || "--version"}`,
+		);
 		if (!rawVersion) continue;
 
 		// Extract version number (e.g., "bun 1.1.4" -> "1.1.4", "node v22.0.0" -> "22.0.0")
@@ -269,17 +327,29 @@ function detectTools(): { tools: ToolInfo[]; preferences: string[] } {
 		tools.push({ name: tool.name, version, path });
 	}
 
-	// Build preferences based on available tools
+	// Source-driven preferences: project context > global availability
 	const preferences: string[] = [];
 	const has = (name: string) => tools.some((t) => t.name === name);
+	const projectCtx = detectProjectContext(cwd);
 
-	if (has("bun") && has("node")) {
+	// JavaScript runtime preference
+	if (projectCtx.js_runtime === "bun" && has("bun")) {
+		preferences.push("use bun (project has bun.lockb)");
+	} else if (projectCtx.js_runtime === "node") {
+		const pm = projectCtx.js_package_manager || "npm";
+		preferences.push(`use node with ${pm} (project lockfile detected)`);
+	} else if (has("bun") && has("node")) {
 		preferences.push("prefer bun over node");
 	} else if (has("bun")) {
 		preferences.push("use bun");
 	}
 
-	if (has("uv") && has("pip")) {
+	// Python tool preference
+	if (projectCtx.python_tool === "uv" && has("uv")) {
+		preferences.push("use uv (project has pyproject.toml)");
+	} else if (projectCtx.python_tool === "pip") {
+		preferences.push("use pip (project has requirements.txt)");
+	} else if (has("uv") && has("pip")) {
 		preferences.push("prefer uv over pip");
 	} else if (has("uv")) {
 		preferences.push("use uv");
@@ -303,7 +373,7 @@ function detectSecurity(): EnvironmentInfo["security"] {
  */
 export function gatherEnvironment(cwd: string): EnvironmentInfo {
 	const ci = detectCI();
-	const { tools, preferences } = detectTools();
+	const { tools, preferences } = detectTools(cwd);
 
 	return {
 		os: detectOS(),

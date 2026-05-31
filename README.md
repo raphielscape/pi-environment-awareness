@@ -64,8 +64,8 @@ The extension automatically:
   <tool name="go" version="1.22.0"/>
 </tools>
 <preferences>
-  <prefer>prefer bun over node</prefer>
-  <prefer>prefer uv over pip</prefer>
+  <prefer>use bun (project has bun.lockb)</prefer>
+  <prefer>use uv (project has pyproject.toml)</prefer>
 </preferences>
 <locale>
 <timezone>Asia/Tokyo</timezone>
@@ -73,6 +73,20 @@ The extension automatically:
 </locale>
 </host-environment>
 ```
+
+## How Preferences Work
+
+Preferences are **source-driven**: project files take precedence over global tool availability.
+
+| Project File | Preference |
+|--------------|------------|
+| `bun.lockb` / `bunfig.toml` | `use bun (project has bun.lockb)` |
+| `pnpm-lock.yaml` | `use node with pnpm (project lockfile detected)` |
+| `yarn.lock` | `use node with yarn (project lockfile detected)` |
+| `package-lock.json` | `use node with npm (project lockfile detected)` |
+| `pyproject.toml` / `uv.lock` | `use uv (project has pyproject.toml)` |
+| `requirements.txt` | `use pip (project has requirements.txt)` |
+| *none* | Falls back to `prefer bun over node` / `prefer uv over pip` |
 
 ## Design Decisions
 
