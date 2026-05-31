@@ -240,7 +240,7 @@ describe("Environment Detection", () => {
 			if (info.tools.length > 0) {
 				expect(xml).toContain("<tools>");
 				expect(xml).toContain("</tools>");
-				expect(xml).toContain('<tool name=');
+				expect(xml).toContain("<tool name=");
 			}
 		});
 

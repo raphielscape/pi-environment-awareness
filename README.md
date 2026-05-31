@@ -111,8 +111,11 @@ Preferences are **source-driven**: project files take precedence over global too
 ## Development
 
 ```bash
+# Run tests
+bun test
+
 # Test output
-bun -e "import { gatherEnvironment, formatEnvironment } from './detectors.ts'; console.log(formatEnvironment(gatherEnvironment(process.cwd())));"
+bun run test
 ```
 
 ## License
