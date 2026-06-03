@@ -230,6 +230,316 @@ describe("Environment Detection", () => {
 		});
 	});
 
+	describe("Project Config Detection", () => {
+		it("should detect .nvmrc version file", () => {
+			createFile(".nvmrc", "22.0.0");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.versionFiles).toContain(".nvmrc");
+		});
+
+		it("should detect .node-version file", () => {
+			createFile(".node-version", "22.0.0");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.versionFiles).toContain(".node-version");
+		});
+
+		it("should detect .python-version file", () => {
+			createFile(".python-version", "3.12.0");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.versionFiles).toContain(".python-version");
+		});
+
+		it("should detect test runner from package.json", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					devDependencies: { vitest: "^1.0.0" },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.testRunner).toBe("vitest");
+		});
+
+		it("should detect jest test runner", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					devDependencies: { jest: "^29.0.0" },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.testRunner).toBe("jest");
+		});
+
+		it("should detect linter from package.json", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					devDependencies: { eslint: "^9.0.0" },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.linter).toBe("eslint");
+		});
+
+		it("should detect biome linter", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					devDependencies: { "@biomejs/biome": "^1.0.0" },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.linter).toBe("biome");
+			expect(info.projectConfig?.formatter).toBe("biome");
+		});
+
+		it("should detect standalone eslint config", () => {
+			createFile("eslint.config.js", "export default []");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.linter).toBe("eslint");
+		});
+
+		it("should detect standalone biome config", () => {
+			createFile("biome.json", "{}");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.linter).toBe("biome");
+			expect(info.projectConfig?.formatter).toBe("biome");
+		});
+
+		it("should detect prettier formatter", () => {
+			createFile(".prettierrc", "{}");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.formatter).toBe("prettier");
+		});
+
+		it("should detect TypeScript version from package.json", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					devDependencies: { typescript: "^5.7.0" },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.typescriptVersion).toBe("^5.7.0");
+		});
+
+		it("should detect monorepo from package.json workspaces", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					workspaces: ["packages/*"],
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.isMonorepo).toBe(true);
+		});
+
+		it("should detect monorepo from pnpm-workspace.yaml", () => {
+			createFile("pnpm-workspace.yaml", "packages:\n  - 'packages/*'");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.isMonorepo).toBe(true);
+		});
+
+		it("should detect monorepo from turbo.json", () => {
+			createFile("turbo.json", "{}");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.isMonorepo).toBe(true);
+		});
+
+		it("should detect CI config files", () => {
+			mkdirSync(join(TEST_DIR, ".github", "workflows"), { recursive: true });
+			createFile(".github/workflows/ci.yml", "name: CI");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.ciConfigs).toContain("github-actions");
+		});
+
+		it("should detect Dockerfile", () => {
+			createFile("Dockerfile", "FROM node:22");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.ciConfigs).toContain("dockerfile");
+		});
+
+		it("should detect .editorconfig", () => {
+			createFile(".editorconfig", "root = true");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.editorConfig).toBe(".editorconfig");
+		});
+
+		it("should return undefined when no project config found", () => {
+			const info = gatherEnvironment(TEST_DIR);
+
+			// No package.json, no config files, no version files
+			expect(info.projectConfig).toBeUndefined();
+		});
+
+		it("should detect multiple version files", () => {
+			createFile(".nvmrc", "22.0.0");
+			createFile(".python-version", "3.12.0");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.versionFiles).toContain(".nvmrc");
+			expect(info.projectConfig?.versionFiles).toContain(".python-version");
+		});
+
+		it("should detect npm scripts from package.json", () => {
+			createFile(
+				"package.json",
+				JSON.stringify({
+					scripts: {
+						dev: "vite",
+						build: "vite build",
+						test: "vitest",
+					},
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.npmScripts).toContain("dev");
+			expect(info.projectConfig?.npmScripts).toContain("build");
+			expect(info.projectConfig?.npmScripts).toContain("test");
+		});
+
+		it("should detect PostgreSQL from docker-compose", () => {
+			createFile(
+				"docker-compose.yml",
+				`services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: test`,
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.databases).toContain("postgresql");
+		});
+
+		it("should detect MongoDB from docker-compose", () => {
+			createFile(
+				"docker-compose.yml",
+				`services:
+  mongo:
+    image: mongo:7`,
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.databases).toContain("mongodb");
+		});
+
+		it("should detect Redis from docker-compose", () => {
+			createFile(
+				"docker-compose.yml",
+				`services:
+  redis:
+    image: redis:7`,
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.databases).toContain("redis");
+		});
+
+		it("should detect multiple databases from docker-compose", () => {
+			createFile(
+				"docker-compose.yml",
+				`services:
+  db:
+    image: postgres:16
+  redis:
+    image: redis:7`,
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.databases).toContain("postgresql");
+			expect(info.projectConfig?.databases).toContain("redis");
+		});
+
+		it("should detect Makefile", () => {
+			createFile("Makefile", "all:\n\techo hello");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.automationTools).toContain("make");
+		});
+
+		it("should detect justfile", () => {
+			createFile("justfile", "default:\n\techo hello");
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.automationTools).toContain("just");
+		});
+
+		it("should detect .env.example", () => {
+			createFile(".env.example", 'DATABASE_URL=""');
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.envExample).toBe(true);
+		});
+
+		it("should detect .env.sample", () => {
+			createFile(".env.sample", 'API_KEY=""');
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.envExample).toBe(true);
+		});
+
+		it("should detect tsconfig strict mode", () => {
+			createFile(
+				"tsconfig.json",
+				JSON.stringify({
+					compilerOptions: { strict: true },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig).toBeDefined();
+			expect(info.projectConfig?.tsconfigStrict).toBe(true);
+		});
+
+		it("should not set tsconfigStrict when strict is false", () => {
+			createFile(
+				"tsconfig.json",
+				JSON.stringify({
+					compilerOptions: { strict: false },
+				}),
+			);
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.projectConfig?.tsconfigStrict).toBeUndefined();
+		});
+	});
+
 	describe("XML Output Structure", () => {
 		it("should include tools section when tools detected", () => {
 			const info = gatherEnvironment(TEST_DIR);

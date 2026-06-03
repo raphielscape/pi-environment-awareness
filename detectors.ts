@@ -45,6 +45,21 @@ export interface EnvironmentInfo {
 	};
 	timezone: string;
 	locale: string;
+	projectConfig?: {
+		versionFiles: string[];
+		testRunner?: string;
+		linter?: string;
+		formatter?: string;
+		typescriptVersion?: string;
+		isMonorepo: boolean;
+		ciConfigs: string[];
+		editorConfig?: string;
+		npmScripts?: string[];
+		databases?: string[];
+		tsconfigStrict?: boolean;
+		automationTools?: string[];
+		envExample?: boolean;
+	};
 }
 
 export interface ToolInfo {
@@ -301,6 +316,237 @@ function detectProjectContext(cwd: string): Record<string, string> {
 }
 
 /**
+ * Detect project configuration files
+ * All detections are based on static config files — no volatile data
+ */
+function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
+	const versionFiles: string[] = [];
+	let testRunner: string | undefined;
+	let linter: string | undefined;
+	let formatter: string | undefined;
+	let typescriptVersion: string | undefined;
+	let isMonorepo = false;
+	const ciConfigs: string[] = [];
+	let editorConfig: string | undefined;
+	let npmScripts: string[] | undefined;
+	let databases: string[] | undefined;
+	let tsconfigStrict: boolean | undefined;
+	let automationTools: string[] | undefined;
+	let envExample: boolean | undefined;
+
+	// Version files
+	if (existsSync(join(cwd, ".nvmrc"))) versionFiles.push(".nvmrc");
+	if (existsSync(join(cwd, ".node-version")))
+		versionFiles.push(".node-version");
+	if (existsSync(join(cwd, ".tool-versions")))
+		versionFiles.push(".tool-versions");
+	if (existsSync(join(cwd, ".python-version")))
+		versionFiles.push(".python-version");
+	if (existsSync(join(cwd, ".ruby-version")))
+		versionFiles.push(".ruby-version");
+	if (existsSync(join(cwd, ".go-version"))) versionFiles.push(".go-version");
+	if (existsSync(join(cwd, "rust-toolchain.toml")))
+		versionFiles.push("rust-toolchain.toml");
+
+	// Test runners (check package.json and config files)
+	const pkgJsonPath = join(cwd, "package.json");
+	if (existsSync(pkgJsonPath)) {
+		try {
+			const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+			const allDeps = {
+				...pkg.dependencies,
+				...pkg.devDependencies,
+			};
+			if (allDeps["vitest"]) testRunner = "vitest";
+			else if (allDeps["jest"]) testRunner = "jest";
+			else if (allDeps["mocha"]) testRunner = "mocha";
+			else if (allDeps["@playwright/test"]) testRunner = "playwright";
+			else if (allDeps["cypress"]) testRunner = "cypress";
+			else if (allDeps["ava"]) testRunner = "ava";
+			else if (allDeps["tape"]) testRunner = "tape";
+
+			// Linters
+			if (allDeps["eslint"]) linter = "eslint";
+			else if (allDeps["@biomejs/biome"]) linter = "biome";
+			else if (allDeps["oxlint"]) linter = "oxlint";
+
+			// Formatters
+			if (allDeps["prettier"]) formatter = "prettier";
+			else if (allDeps["@biomejs/biome"]) formatter = "biome";
+
+			// TypeScript version
+			if (allDeps["typescript"]) {
+				typescriptVersion = allDeps["typescript"];
+			}
+
+			// Monorepo detection
+			if (pkg.workspaces) isMonorepo = true;
+
+			// npm scripts (common ones that help the model)
+			if (pkg.scripts && typeof pkg.scripts === "object") {
+				const scriptNames = Object.keys(pkg.scripts);
+				if (scriptNames.length > 0) {
+					npmScripts = scriptNames;
+				}
+			}
+		} catch {
+			// Invalid package.json, skip
+		}
+	}
+
+	// Standalone config files for linters/formatters
+	if (!linter && existsSync(join(cwd, "eslint.config.js"))) linter = "eslint";
+	if (!linter && existsSync(join(cwd, "eslint.config.mjs"))) linter = "eslint";
+	if (!linter && existsSync(join(cwd, ".eslintrc.js"))) linter = "eslint";
+	if (!linter && existsSync(join(cwd, ".eslintrc.json"))) linter = "eslint";
+	if (!linter && existsSync(join(cwd, "biome.json"))) linter = "biome";
+	if (!linter && existsSync(join(cwd, "biome.jsonc"))) linter = "biome";
+	if (!linter && existsSync(join(cwd, ".oxlintrc.json"))) linter = "oxlint";
+
+	if (!formatter && existsSync(join(cwd, ".prettierrc")))
+		formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, ".prettierrc.json")))
+		formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, ".prettierrc.js")))
+		formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, "prettier.config.js")))
+		formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, "biome.json"))) formatter = "biome";
+	if (!formatter && existsSync(join(cwd, "biome.jsonc"))) formatter = "biome";
+
+	// Monorepo detection (other patterns)
+	if (existsSync(join(cwd, "pnpm-workspace.yaml"))) isMonorepo = true;
+	if (existsSync(join(cwd, "nx.json"))) isMonorepo = true;
+	if (existsSync(join(cwd, "turbo.json"))) isMonorepo = true;
+	if (existsSync(join(cwd, "lerna.json"))) isMonorepo = true;
+
+	// CI config files
+	if (existsSync(join(cwd, ".github", "workflows")))
+		ciConfigs.push("github-actions");
+	if (existsSync(join(cwd, ".gitlab-ci.yml"))) ciConfigs.push("gitlab-ci");
+	if (existsSync(join(cwd, "Jenkinsfile"))) ciConfigs.push("jenkins");
+	if (existsSync(join(cwd, ".circleci", "config.yml")))
+		ciConfigs.push("circleci");
+	if (existsSync(join(cwd, ".travis.yml"))) ciConfigs.push("travis");
+	if (existsSync(join(cwd, "azure-pipelines.yml")))
+		ciConfigs.push("azure-pipelines");
+	if (existsSync(join(cwd, ".buildkite", "pipeline.yml")))
+		ciConfigs.push("buildkite");
+	if (existsSync(join(cwd, "Dockerfile"))) ciConfigs.push("dockerfile");
+	if (existsSync(join(cwd, "docker-compose.yml")))
+		ciConfigs.push("docker-compose");
+	if (existsSync(join(cwd, "docker-compose.yaml")))
+		ciConfigs.push("docker-compose");
+
+	// Editor config
+	if (existsSync(join(cwd, ".editorconfig"))) editorConfig = ".editorconfig";
+
+	// tsconfig strict mode
+	const tsconfigPath = join(cwd, "tsconfig.json");
+	if (existsSync(tsconfigPath)) {
+		try {
+			const tsconfig = JSON.parse(readFileSync(tsconfigPath, "utf-8"));
+			if (tsconfig.compilerOptions?.strict === true) {
+				tsconfigStrict = true;
+			}
+		} catch {
+			// Invalid tsconfig, skip
+		}
+	}
+
+	// Database detection from docker-compose
+	const dockerComposeFiles = [
+		"docker-compose.yml",
+		"docker-compose.yaml",
+		"compose.yml",
+		"compose.yaml",
+	];
+	for (const dcFile of dockerComposeFiles) {
+		const dcPath = join(cwd, dcFile);
+		if (existsSync(dcPath)) {
+			try {
+				const content = readFileSync(dcPath, "utf-8").toLowerCase();
+				if (!databases) databases = [];
+				if (content.includes("postgres") && !databases.includes("postgresql")) {
+					databases.push("postgresql");
+				}
+				if (content.includes("mysql") && !databases.includes("mysql")) {
+					databases.push("mysql");
+				}
+				if (content.includes("mongo") && !databases.includes("mongodb")) {
+					databases.push("mongodb");
+				}
+				if (content.includes("redis") && !databases.includes("redis")) {
+					databases.push("redis");
+				}
+				if (content.includes("sqlite") && !databases.includes("sqlite")) {
+					databases.push("sqlite");
+				}
+			} catch {
+				// Invalid docker-compose, skip
+			}
+		}
+	}
+
+	// Automation tools
+	if (existsSync(join(cwd, "Makefile"))) {
+		if (!automationTools) automationTools = [];
+		automationTools.push("make");
+	}
+	if (existsSync(join(cwd, "justfile"))) {
+		if (!automationTools) automationTools = [];
+		automationTools.push("just");
+	}
+	if (existsSync(join(cwd, "Taskfile.yml"))) {
+		if (!automationTools) automationTools = [];
+		automationTools.push("task");
+	}
+	if (existsSync(join(cwd, "Rakefile"))) {
+		if (!automationTools) automationTools = [];
+		automationTools.push("rake");
+	}
+
+	// .env.example existence
+	if (existsSync(join(cwd, ".env.example"))) envExample = true;
+	if (existsSync(join(cwd, ".env.sample"))) envExample = true;
+	if (existsSync(join(cwd, ".env.template"))) envExample = true;
+
+	// Check if any data was found
+	const hasData =
+		versionFiles.length > 0 ||
+		testRunner ||
+		linter ||
+		formatter ||
+		typescriptVersion ||
+		isMonorepo ||
+		ciConfigs.length > 0 ||
+		editorConfig ||
+		npmScripts ||
+		databases ||
+		tsconfigStrict ||
+		automationTools ||
+		envExample;
+
+	if (!hasData) return undefined;
+
+	return {
+		versionFiles,
+		testRunner,
+		linter,
+		formatter,
+		typescriptVersion,
+		isMonorepo,
+		ciConfigs,
+		editorConfig,
+		npmScripts,
+		databases,
+		tsconfigStrict,
+		automationTools,
+		envExample,
+	};
+}
+
+/**
  * Detect available development tools and their versions
  */
 function detectTools(cwd: string): {
@@ -402,6 +648,7 @@ export function gatherEnvironment(cwd: string): EnvironmentInfo {
 		security: detectSecurity(),
 		timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
 		locale: process.env.LANG || process.env.LC_ALL || "unknown",
+		projectConfig: detectProjectConfig(cwd),
 	};
 }
 
@@ -496,6 +743,82 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 			.map((p) => `  <prefer>${p}</prefer>`)
 			.join("\n");
 		sections.push(`<preferences>\n${prefLines}\n</preferences>`);
+	}
+
+	// Project Config (version files, test runner, linter, etc.)
+	if (info.projectConfig) {
+		const configLines: string[] = [];
+
+		if (info.projectConfig.versionFiles.length > 0) {
+			configLines.push(
+				`<version-files>${info.projectConfig.versionFiles.join(", ")}</version-files>`,
+			);
+		}
+		if (info.projectConfig.testRunner) {
+			configLines.push(
+				`<test-runner>${info.projectConfig.testRunner}</test-runner>`,
+			);
+		}
+		if (info.projectConfig.linter) {
+			configLines.push(`<linter>${info.projectConfig.linter}</linter>`);
+		}
+		if (info.projectConfig.formatter) {
+			configLines.push(
+				`<formatter>${info.projectConfig.formatter}</formatter>`,
+			);
+		}
+		if (info.projectConfig.typescriptVersion) {
+			configLines.push(
+				`<typescript>${info.projectConfig.typescriptVersion}</typescript>`,
+			);
+		}
+		if (info.projectConfig.isMonorepo) {
+			configLines.push("<monorepo>true</monorepo>");
+		}
+		if (info.projectConfig.ciConfigs.length > 0) {
+			configLines.push(`<ci>${info.projectConfig.ciConfigs.join(", ")}</ci>`);
+		}
+		if (info.projectConfig.editorConfig) {
+			configLines.push(
+				`<editor-config>${info.projectConfig.editorConfig}</editor-config>`,
+			);
+		}
+		if (info.projectConfig.tsconfigStrict) {
+			configLines.push("<tsconfig-strict>true</tsconfig-strict>");
+		}
+		if (
+			info.projectConfig.npmScripts &&
+			info.projectConfig.npmScripts.length > 0
+		) {
+			configLines.push(
+				`<npm-scripts>${info.projectConfig.npmScripts.join(", ")}</npm-scripts>`,
+			);
+		}
+		if (
+			info.projectConfig.databases &&
+			info.projectConfig.databases.length > 0
+		) {
+			configLines.push(
+				`<databases>${info.projectConfig.databases.join(", ")}</databases>`,
+			);
+		}
+		if (
+			info.projectConfig.automationTools &&
+			info.projectConfig.automationTools.length > 0
+		) {
+			configLines.push(
+				`<automation>${info.projectConfig.automationTools.join(", ")}</automation>`,
+			);
+		}
+		if (info.projectConfig.envExample) {
+			configLines.push("<env-example>true</env-example>");
+		}
+
+		if (configLines.length > 0) {
+			sections.push(
+				`<project-config>\n${configLines.join("\n")}\n</project-config>`,
+			);
+		}
 	}
 
 	// Locale

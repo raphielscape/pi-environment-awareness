@@ -30,6 +30,7 @@ A Pi extension that injects host environment context into the system prompt via 
 | **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc.) |
 | **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip) |
 | **Locale** | Timezone, language |
+| **Project Config** | Version files, test runner, linter, formatter, TypeScript version, monorepo, CI configs, editor config, npm scripts, databases, automation tools, .env.example, tsconfig strict |
 
 ## Design Decisions
 
@@ -63,6 +64,21 @@ A Pi extension that injects host environment context into the system prompt via 
   <tool name="python3" version="3.12.0"/>
   <tool name="go" version="1.22.0"/>
 </tools>
+<project-config>
+<version-files>.nvmrc, .python-version</version-files>
+<test-runner>vitest</test-runner>
+<linter>eslint</linter>
+<formatter>prettier</formatter>
+<typescript>^5.7.0</typescript>
+<monorepo>true</monorepo>
+<ci>github-actions, dockerfile</ci>
+<editor-config>.editorconfig</editor-config>
+<tsconfig-strict>true</tsconfig-strict>
+<npm-scripts>dev, build, test, lint</npm-scripts>
+<databases>postgresql, redis</databases>
+<automation>make, just</automation>
+<env-example>true</env-example>
+</project-config>
 <preferences>
   <prefer>prefer bun over node</prefer>
   <prefer>prefer uv over pip</prefer>
