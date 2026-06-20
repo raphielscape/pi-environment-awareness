@@ -32,7 +32,6 @@ export interface EnvironmentInfo {
 	packageManager?: string;
 	git?: {
 		branch: string;
-		defaultBranch?: string;
 		isDirty: boolean;
 		isRepo: boolean;
 		dirtyFileCount: number;
@@ -65,7 +64,6 @@ export interface EnvironmentInfo {
 export interface ToolInfo {
 	name: string;
 	version: string;
-	path: string;
 }
 
 /**
@@ -224,15 +222,6 @@ function detectGit(cwd: string): EnvironmentInfo["git"] {
 		? status!.split("\n").filter((line) => line.trim().length > 0).length
 		: 0;
 
-	// Detect default branch (main || master fallback)
-	const defaultBranch =
-		safeExec("git symbolic-ref refs/remotes/origin/HEAD --short", cwd)?.replace(
-			"origin/",
-			"",
-		) ||
-		(safeExec("git rev-parse --verify main", cwd) ? "main" : undefined) ||
-		(safeExec("git rev-parse --verify master", cwd) ? "master" : undefined);
-
 	// Recent commits
 	const logOutput = safeExec("git log --oneline -n 3", cwd);
 	const recentCommits = logOutput
@@ -241,7 +230,6 @@ function detectGit(cwd: string): EnvironmentInfo["git"] {
 
 	return {
 		branch,
-		defaultBranch,
 		isDirty,
 		isRepo: true,
 		dirtyFileCount,
@@ -256,30 +244,24 @@ function detectGit(cwd: string): EnvironmentInfo["git"] {
 function detectProjectContext(cwd: string): Record<string, string> {
 	const context: Record<string, string> = {};
 
-	// JavaScript/TypeScript ecosystem
 	if (
 		existsSync(join(cwd, "bun.lockb")) ||
 		existsSync(join(cwd, "bunfig.toml"))
 	) {
 		context.js_runtime = "bun";
-		context.js_lockfile = "bun.lockb";
 	} else if (existsSync(join(cwd, "pnpm-lock.yaml"))) {
 		context.js_runtime = "node";
-		context.js_lockfile = "pnpm-lock.yaml";
 		context.js_package_manager = "pnpm";
 	} else if (existsSync(join(cwd, "yarn.lock"))) {
 		context.js_runtime = "node";
-		context.js_lockfile = "yarn.lock";
 		context.js_package_manager = "yarn";
 	} else if (existsSync(join(cwd, "package-lock.json"))) {
 		context.js_runtime = "node";
-		context.js_lockfile = "package-lock.json";
 		context.js_package_manager = "npm";
 	} else if (existsSync(join(cwd, "package.json"))) {
 		context.js_runtime = "node";
 	}
 
-	// Python ecosystem
 	if (
 		existsSync(join(cwd, "uv.lock")) ||
 		existsSync(join(cwd, "pyproject.toml"))
@@ -291,26 +273,6 @@ function detectProjectContext(cwd: string): Record<string, string> {
 	) {
 		context.python_tool = "pip";
 	}
-
-	// Version managers
-	if (existsSync(join(cwd, ".nvmrc"))) {
-		context.node_version_file = ".nvmrc";
-	} else if (existsSync(join(cwd, ".node-version"))) {
-		context.node_version_file = ".node-version";
-	} else if (existsSync(join(cwd, ".tool-versions"))) {
-		context.version_manager = "asdf/mise";
-	}
-
-	// Python version
-	if (existsSync(join(cwd, ".python-version"))) {
-		context.python_version_file = ".python-version";
-	}
-
-	// Other ecosystems
-	if (existsSync(join(cwd, "Cargo.toml"))) context.ecosystem = "rust";
-	if (existsSync(join(cwd, "go.mod"))) context.ecosystem = "go";
-	if (existsSync(join(cwd, "pom.xml")) || existsSync(join(cwd, "build.gradle")))
-		context.ecosystem = "java";
 
 	return context;
 }
@@ -433,10 +395,36 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 	if (existsSync(join(cwd, ".buildkite", "pipeline.yml")))
 		ciConfigs.push("buildkite");
 	if (existsSync(join(cwd, "Dockerfile"))) ciConfigs.push("dockerfile");
-	if (existsSync(join(cwd, "docker-compose.yml")))
+
+	// Docker-compose: check for CI config AND database services in one pass
+	const dcFiles = [
+		"docker-compose.yml",
+		"docker-compose.yaml",
+		"compose.yml",
+		"compose.yaml",
+	];
+	for (const dcFile of dcFiles) {
+		const dcPath = join(cwd, dcFile);
+		if (!existsSync(dcPath)) continue;
 		ciConfigs.push("docker-compose");
-	if (existsSync(join(cwd, "docker-compose.yaml")))
-		ciConfigs.push("docker-compose");
+		try {
+			const content = readFileSync(dcPath, "utf-8").toLowerCase();
+			if (!databases) databases = [];
+			if (content.includes("postgres") && !databases.includes("postgresql"))
+				databases.push("postgresql");
+			if (content.includes("mysql") && !databases.includes("mysql"))
+				databases.push("mysql");
+			if (content.includes("mongo") && !databases.includes("mongodb"))
+				databases.push("mongodb");
+			if (content.includes("redis") && !databases.includes("redis"))
+				databases.push("redis");
+			if (content.includes("sqlite") && !databases.includes("sqlite"))
+				databases.push("sqlite");
+		} catch {
+			// Invalid docker-compose, skip DB detection
+		}
+		break; // Only process first matching docker-compose file
+	}
 
 	// Editor config
 	if (existsSync(join(cwd, ".editorconfig"))) editorConfig = ".editorconfig";
@@ -451,40 +439,6 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 			}
 		} catch {
 			// Invalid tsconfig, skip
-		}
-	}
-
-	// Database detection from docker-compose
-	const dockerComposeFiles = [
-		"docker-compose.yml",
-		"docker-compose.yaml",
-		"compose.yml",
-		"compose.yaml",
-	];
-	for (const dcFile of dockerComposeFiles) {
-		const dcPath = join(cwd, dcFile);
-		if (existsSync(dcPath)) {
-			try {
-				const content = readFileSync(dcPath, "utf-8").toLowerCase();
-				if (!databases) databases = [];
-				if (content.includes("postgres") && !databases.includes("postgresql")) {
-					databases.push("postgresql");
-				}
-				if (content.includes("mysql") && !databases.includes("mysql")) {
-					databases.push("mysql");
-				}
-				if (content.includes("mongo") && !databases.includes("mongodb")) {
-					databases.push("mongodb");
-				}
-				if (content.includes("redis") && !databases.includes("redis")) {
-					databases.push("redis");
-				}
-				if (content.includes("sqlite") && !databases.includes("sqlite")) {
-					databases.push("sqlite");
-				}
-			} catch {
-				// Invalid docker-compose, skip
-			}
 		}
 	}
 
@@ -583,7 +537,7 @@ function detectTools(cwd: string): {
 		const versionMatch = rawVersion.match(/(\d+\.\d+\.\d+[\w.-]*)/);
 		const version = versionMatch?.[1] || rawVersion;
 
-		tools.push({ name: tool.name, version, path });
+		tools.push({ name: tool.name, version });
 	}
 
 	// Source-driven preferences: project context > global availability
@@ -703,11 +657,6 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 	// Git (if in repo)
 	if (info.git?.isRepo) {
 		const gitLines = [`<branch>${info.git.branch}</branch>`];
-
-		// Default branch (useful for PR workflows)
-		if (info.git.defaultBranch) {
-			gitLines.push(`<default>${info.git.defaultBranch}</default>`);
-		}
 
 		// Status with file count
 		if (info.git.isDirty) {

@@ -93,6 +93,17 @@ ${cachedEnv}
 		}
 	});
 
+	// Refresh after compaction — git status may be stale after many edits
+	// ponytail: compaction already busts the conversation cache, so re-detection is free
+	pi.on("session_compact", async (_event, ctx) => {
+		try {
+			const info = gatherEnvironment(ctx.cwd);
+			cachedEnv = formatEnvironment(info);
+		} catch {
+			// Don't break pi if detection fails
+		}
+	});
+
 	// Register a command to view or refresh environment info
 	pi.registerCommand("env", {
 		description: "Show or refresh host environment info",

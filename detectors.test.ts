@@ -71,7 +71,6 @@ describe("Environment Detection", () => {
 				const tool = info.tools[0];
 				expect(tool).toHaveProperty("name");
 				expect(tool).toHaveProperty("version");
-				expect(tool).toHaveProperty("path");
 			}
 		});
 
