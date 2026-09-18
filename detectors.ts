@@ -15,7 +15,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 export interface EnvironmentInfo {
 	os: {
@@ -24,6 +24,10 @@ export interface EnvironmentInfo {
 		version: string;
 		release: string;
 	};
+	// CPU model name from os.cpus()[0].model — stable hardware fact, safe
+	// for prompt caching. Deliberately no thread count: os.cpus() reports
+	// host CPUs inside containers, which would mislead parallelism hints.
+	cpu?: string;
 	shell: string;
 	isWSL: boolean;
 	isDocker: boolean;
@@ -41,6 +45,11 @@ export interface EnvironmentInfo {
 	};
 	timezone: string;
 	locale: string;
+	// XDG base directories, only populated when the env var is set to an
+	// absolute path that differs from the spec default. Models default to
+	// ~/.config etc.; emitting only non-default values corrects that without
+	// adding noise on conventional setups.
+	xdgDirs?: Record<string, string>;
 	projectConfig?: {
 		versionFiles: string[];
 		testRunner?: string;
@@ -107,6 +116,15 @@ function detectOS(): EnvironmentInfo["os"] {
 		version,
 		release,
 	};
+}
+
+/**
+ * Detect the CPU model name. Omitted when unavailable rather than reported
+ * as "unknown" — an absent tag is cheaper than a meaningless one.
+ */
+function detectCpu(): string | undefined {
+	const model = os.cpus()[0]?.model.trim();
+	return model || undefined;
 }
 
 /**
@@ -620,6 +638,47 @@ function detectSecurity(): EnvironmentInfo["security"] {
 }
 
 /**
+ * Detect XDG base directories that differ from their spec defaults.
+ *
+ * Per the XDG Base Directory spec, values must be absolute paths; relative
+ * or empty values are invalid and ignored. Unset variables fall back to the
+ * default ($HOME/.config etc.) and are also omitted — the model already
+ * assumes the default, so emitting it would be pure noise.
+ */
+function detectXdgDirs(): Record<string, string> | undefined {
+	const home = os.homedir();
+	const vars: Array<[string, string, string]> = [
+		["XDG_CONFIG_HOME", "config", join(home, ".config")],
+		["XDG_DATA_HOME", "data", join(home, ".local", "share")],
+		["XDG_CACHE_HOME", "cache", join(home, ".cache")],
+		["XDG_STATE_HOME", "state", join(home, ".local", "state")],
+	];
+
+	let dirs: Record<string, string> | undefined;
+	for (const [envVar, key, defaultPath] of vars) {
+		const value = process.env[envVar];
+		if (!value || !isAbsolute(value) || value === defaultPath) continue;
+		if (!dirs) dirs = {};
+		dirs[key] = value;
+	}
+	return dirs;
+}
+
+/**
+ * Escape a string for embedding in XML text or attribute content.
+ * Values like XDG paths are user-controlled env vars — raw `&` or `<`
+ * would produce malformed XML.
+ */
+function xmlEscape(s: string): string {
+	return s
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;");
+}
+
+/**
  * Gather all environment information
  */
 export function gatherEnvironment(cwd: string): EnvironmentInfo {
@@ -628,6 +687,7 @@ export function gatherEnvironment(cwd: string): EnvironmentInfo {
 
 	return {
 		os: detectOS(),
+		cpu: detectCpu(),
 		shell: detectShell(),
 		isWSL: detectWSL(),
 		isDocker: detectDocker(),
@@ -640,6 +700,7 @@ export function gatherEnvironment(cwd: string): EnvironmentInfo {
 		security: detectSecurity(),
 		timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
 		locale: process.env.LANG || process.env.LC_ALL || "unknown",
+		xdgDirs: detectXdgDirs(),
 		projectConfig: detectProjectConfig(cwd),
 	};
 }
@@ -666,8 +727,11 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 
 	const systemLines = [
 		`<os>${osDisplay} (${info.os.arch})</os>`,
-		`<shell>${info.shell}</shell>`,
+		`<shell>${xmlEscape(info.shell)}</shell>`,
 	];
+	if (info.cpu) {
+		systemLines.push(`<cpu>${xmlEscape(info.cpu)}</cpu>`);
+	}
 
 	// Special environments
 	const envTags: string[] = [];
@@ -698,7 +762,10 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 	// Tools (available dev tools with versions)
 	if (info.tools.length > 0) {
 		const toolLines = info.tools
-			.map((t) => `  <tool name="${t.name}" version="${t.version}"/>`)
+			.map(
+				(t) =>
+					`  <tool name="${xmlEscape(t.name)}" version="${xmlEscape(t.version)}"/>`,
+			)
 			.join("\n");
 		sections.push(`<tools>\n${toolLines}\n</tools>`);
 	}
@@ -791,6 +858,14 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 	sections.push(
 		`<locale>\n<timezone>${info.timezone}</timezone>\n<lang>${info.locale}</lang>\n</locale>`,
 	);
+
+	// XDG base directories (only non-default values — defaults are assumed)
+	if (info.xdgDirs && Object.keys(info.xdgDirs).length > 0) {
+		const xdgLines = Object.entries(info.xdgDirs)
+			.map(([key, value]) => `<${key}>${xmlEscape(value)}</${key}>`)
+			.join("\n");
+		sections.push(`<xdg-base-dirs>\n${xdgLines}\n</xdg-base-dirs>`);
+	}
 
 	return `<host-environment>\n${sections.join("\n")}\n</host-environment>`;
 }

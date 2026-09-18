@@ -24,7 +24,7 @@ via XML, helping the LLM understand the runtime it's working in.
 
 | Category | Details |
 |----------|---------|
-| **System** | OS (distro name via `/etc/os-release` on Linux), architecture, version, shell |
+| **System** | OS (distro name via `/etc/os-release` on Linux), architecture, version, shell, CPU model |
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown if root) |
 | **Dev Tools** | Package manager (from lock files) |
@@ -41,7 +41,8 @@ via XML, helping the LLM understand the runtime it's working in.
   Git repo membership is still detected internally but never injected.
 - **No network check** — If there's no internet, there's no Pi session;
   check is pointless
-- **Conditional sections** — Security only shown when noteworthy (root)
+- **Conditional sections** — Security only shown when noteworthy (root); XDG
+  base dirs only when set to non-default absolute paths
 - **Compact XML** — Minimal token overhead
 
 ## Output Format

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { formatEnvironment, gatherEnvironment } from "./detectors";
@@ -42,6 +42,36 @@ describe("Environment Detection", () => {
 			expect(info.os.arch).toBeDefined();
 			expect(typeof info.os.platform).toBe("string");
 			expect(typeof info.os.arch).toBe("string");
+		});
+
+		it("should detect CPU model when available", () => {
+			const info = gatherEnvironment(TEST_DIR);
+
+			// Virtually all hosts report a model; tolerate exotic environments
+			if (info.cpu !== undefined) {
+				expect(typeof info.cpu).toBe("string");
+				expect(info.cpu.length).toBeGreaterThan(0);
+
+				const xml = formatEnvironment(info);
+				expect(xml).toContain("<cpu>");
+			}
+		});
+
+		it("should XML-escape special characters in CPU model", () => {
+			const info = gatherEnvironment(TEST_DIR);
+			info.cpu = "Fake CPU <R&D>";
+			const xml = formatEnvironment(info);
+
+			expect(xml).toContain("<cpu>Fake CPU &lt;R&amp;D&gt;</cpu>");
+			expect(xml).not.toContain("<R&D>");
+		});
+
+		it("should omit the cpu tag when no model is available", () => {
+			const info = gatherEnvironment(TEST_DIR);
+			delete info.cpu;
+			const xml = formatEnvironment(info);
+
+			expect(xml).not.toContain("<cpu>");
 		});
 
 		it("should detect shell", () => {
@@ -534,6 +564,72 @@ describe("Environment Detection", () => {
 			const info = gatherEnvironment(TEST_DIR);
 
 			expect(info.projectConfig?.tsconfigStrict).toBeUndefined();
+		});
+	});
+
+	describe("XDG Base Directories", () => {
+		const XDG_VARS = [
+			"XDG_CONFIG_HOME",
+			"XDG_DATA_HOME",
+			"XDG_CACHE_HOME",
+			"XDG_STATE_HOME",
+		];
+		const savedEnv: Record<string, string | undefined> = {};
+
+		beforeEach(() => {
+			for (const v of XDG_VARS) {
+				savedEnv[v] = process.env[v];
+				delete process.env[v];
+			}
+		});
+
+		afterEach(() => {
+			for (const v of XDG_VARS) {
+				if (savedEnv[v] === undefined) delete process.env[v];
+				else process.env[v] = savedEnv[v];
+			}
+		});
+
+		it("should emit nothing when XDG vars are unset (defaults assumed)", () => {
+			const info = gatherEnvironment(TEST_DIR);
+			expect(info.xdgDirs).toBeUndefined();
+
+			const xml = formatEnvironment(info);
+			expect(xml).not.toContain("<xdg-base-dirs>");
+		});
+
+		it("should emit only non-default absolute paths", () => {
+			process.env.XDG_CONFIG_HOME = "/custom/config";
+			const info = gatherEnvironment(TEST_DIR);
+
+			expect(info.xdgDirs).toEqual({ config: "/custom/config" });
+
+			const xml = formatEnvironment(info);
+			expect(xml).toContain("<xdg-base-dirs>");
+			expect(xml).toContain("<config>/custom/config</config>");
+			expect(xml).not.toContain("<data>");
+		});
+
+		it("should ignore values equal to the spec default", () => {
+			process.env.XDG_CACHE_HOME = `${process.env.HOME}/.cache`;
+			const info = gatherEnvironment(TEST_DIR);
+			expect(info.xdgDirs).toBeUndefined();
+		});
+
+		it("should ignore relative paths (invalid per XDG spec)", () => {
+			process.env.XDG_CONFIG_HOME = "relative/config";
+			process.env.XDG_DATA_HOME = "./data";
+			const info = gatherEnvironment(TEST_DIR);
+			expect(info.xdgDirs).toBeUndefined();
+		});
+
+		it("should XML-escape special characters in paths", () => {
+			process.env.XDG_CONFIG_HOME = "/opt/a&b/<config>";
+			const info = gatherEnvironment(TEST_DIR);
+			const xml = formatEnvironment(info);
+
+			expect(xml).toContain("<config>/opt/a&amp;b/&lt;config&gt;</config>");
+			expect(xml).not.toContain("/opt/a&b/");
 		});
 	});
 

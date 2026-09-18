@@ -10,13 +10,14 @@ runtime it's working in.
 
 | Category | Detected Info |
 |----------|---------------|
-| **System** | OS (distro name on Linux), architecture, version, shell |
+| **System** | OS (distro name on Linux), architecture, version, shell, CPU model |
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown when noteworthy) |
 | **Dev Tools** | Package manager (from lock files) |
 | **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc., incl. modern CLI replacements like rg, ast-grep, fd, eza) |
 | **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip) |
 | **Locale** | Timezone, language |
+| **XDG** | Base dirs, only when set to non-default absolute paths |
 
 ## Installation
 
@@ -78,6 +79,7 @@ The extension automatically:
 <system>
 <os>CachyOS (x64)</os>
 <shell>/bin/fish</shell>
+<cpu>AMD Ryzen 9 7950X 16-Core Processor</cpu>
 </system>
 <package-manager>bun</package-manager>
 <tools>
@@ -118,7 +120,8 @@ global tool availability.
   are excluded: they change mid-session and break prompt caching. Git repo
   membership is still detected internally, but never injected.
 - **No network check** — No internet = no Pi session; check is pointless
-- **Conditional sections** — Security only shown when noteworthy (root)
+- **Conditional sections** — Security only shown when noteworthy (root);
+  XDG base dirs only when set to non-default absolute paths
 - **Compact XML** — Minimal token overhead
 
 ## Development

@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modern CLI preferences, emitted only when the tool is available:
   "prefer rg/fd/bat/eza/sd over grep/find/cat/ls/sed", plus usage hints for
   jq, delta, difft, gh, yq, and xh, and ast-grep for structural code search
+- CPU model name in the system section (no thread count — `os.cpus()`
+  reports host CPUs inside containers, which would mislead parallelism hints)
+- XDG base directory detection, emitted only for env vars set to absolute
+  paths differing from the spec defaults
+- XML escaping for externally-sourced values (XDG paths, CPU model, shell,
+  tool names/versions)
 
 ### Changed
 
