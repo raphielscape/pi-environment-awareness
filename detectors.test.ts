@@ -1,11 +1,7 @@
-import { describe, it, expect, beforeEach } from "bun:test";
-import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-	gatherEnvironment,
-	formatEnvironment,
-	type EnvironmentInfo,
-} from "./detectors";
+import { formatEnvironment, gatherEnvironment } from "./detectors";
 
 const TEST_DIR = join(import.meta.dir, ".test-tmp");
 
@@ -123,18 +119,20 @@ describe("Environment Detection", () => {
 			writeFileSync(join(TEST_DIR, ".git", "HEAD"), "ref: refs/heads/main");
 			const info = gatherEnvironment(TEST_DIR);
 
-			expect(info.git).toBeDefined();
-			expect(info.git?.isRepo).toBe(true);
-			expect(info.git?.branch).toBeDefined();
+			expect(info.isGitRepo).toBe(true);
 		});
 
-		it("should not detect git when no .git", () => {
+		it("should not inject any git-derived data into the prompt", () => {
+			// Git branch/status/commits are volatile and would bust the prompt
+			// cache. Repo membership is detected but never formatted.
+			mkdirSync(join(TEST_DIR, ".git"), { recursive: true });
 			const info = gatherEnvironment(TEST_DIR);
+			const xml = formatEnvironment(info);
 
-			// May or may not have git depending on parent dirs
-			if (info.git) {
-				expect(info.git.isRepo).toBe(true);
-			}
+			expect(xml).not.toContain("<git>");
+			expect(xml).not.toContain("<branch>");
+			expect(xml).not.toContain("<status>");
+			expect(xml).not.toContain("<recent-commits>");
 		});
 	});
 
@@ -561,32 +559,6 @@ describe("Environment Detection", () => {
 				expect(xml).toContain("<preferences>");
 				expect(xml).toContain("</preferences>");
 				expect(xml).toContain("<prefer>");
-			}
-		});
-
-		it("should include git section when in git repo", () => {
-			mkdirSync(join(TEST_DIR, ".git"), { recursive: true });
-			writeFileSync(join(TEST_DIR, ".git", "HEAD"), "ref: refs/heads/main");
-			const info = gatherEnvironment(TEST_DIR);
-			const xml = formatEnvironment(info);
-
-			if (info.git?.isRepo) {
-				expect(xml).toContain("<git>");
-				expect(xml).toContain("</git>");
-				expect(xml).toContain("<branch>");
-				expect(xml).toContain("<status>");
-			}
-		});
-
-		it("should include recent commits when available", () => {
-			mkdirSync(join(TEST_DIR, ".git"), { recursive: true });
-			writeFileSync(join(TEST_DIR, ".git", "HEAD"), "ref: refs/heads/main");
-			const info = gatherEnvironment(TEST_DIR);
-			const xml = formatEnvironment(info);
-
-			if (info.git?.recentCommits && info.git.recentCommits.length > 0) {
-				expect(xml).toContain("<recent-commits>");
-				expect(xml).toContain("<commit>");
 			}
 		});
 	});

@@ -2,7 +2,9 @@
 
 # pi-environment-awareness
 
-A [Pi](https://github.com/earendil-works/pi-coding-agent) extension that injects host environment context into the system prompt, helping the LLM understand the runtime it's working in.
+A [Pi](https://github.com/earendil-works/pi-coding-agent) extension that injects
+host environment context into the system prompt, helping the LLM understand the
+runtime it's working in.
 
 ## Features
 
@@ -12,40 +14,57 @@ A [Pi](https://github.com/earendil-works/pi-coding-agent) extension that injects
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown when noteworthy) |
 | **Dev Tools** | Package manager (from lock files) |
-| **Git** | Branch, default branch, dirty/clean status with file count, recent commits |
-| **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc.) |
+| **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc., incl. modern CLI replacements like rg, ast-grep, fd, eza) |
 | **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip) |
 | **Locale** | Timezone, language |
 
 ## Installation
 
-### From npm (when published)
+### Pi
+
 ```bash
 pi install npm:pi-environment-awareness
 ```
 
-### From GitHub
 ```bash
 pi install git:github.com/raphielscape/pi-environment-awareness@v1
 ```
 
-### From local path (development)
-```bash
-# Add to settings directly
-pi install /path/to/pi-environment-awareness
+### OMP (Oh My Pi)
 
+OMP reads the same package manifest — `omp.extensions`, with the legacy
+`pi.extensions` key still accepted — so the same install covers both hosts:
+
+```bash
+omp install /path/to/pi-environment-awareness
+```
+
+Or drop the extension into OMP's discovery roots directly:
+
+```bash
+# user-level (~/.omp/agent/extensions)
+ln -s /path/to/pi-environment-awareness ~/.omp/agent/extensions/environment-awareness
+
+# project-level (<repo>/.omp/extensions)
+ln -s /path/to/pi-environment-awareness .omp/extensions/environment-awareness
+```
+
+### From local path (development, Pi)
+
+```bash
 # Or symlink for live development
 ln -s /path/to/pi-environment-awareness ~/.pi/agent/extensions/environment-awareness
 ```
 
-Then reload Pi or run `/reload`.
+Then reload the agent or run `/reload`.
 
 ## Usage
 
 The extension automatically:
+
 1. Detects your environment on session start
 2. Injects `<host-environment>` XML into the system prompt
-3. Shows status in the footer (e.g., `Linux/x64`)
+3. Shows WSL, Docker, or CI in the footer when detected
 
 ### Commands
 
@@ -61,15 +80,6 @@ The extension automatically:
 <shell>/bin/fish</shell>
 </system>
 <package-manager>bun</package-manager>
-<git>
-<branch>feature-x</branch>
-<default>main</default>
-<status>dirty (3 files)</status>
-<recent-commits>
-    <commit>abc1234 fix: auth flow</commit>
-    <commit>def5678 feat: add login</commit>
-</recent-commits>
-</git>
 <tools>
   <tool name="bun" version="1.4.0"/>
   <tool name="node" version="22.0.0"/>
@@ -89,7 +99,8 @@ The extension automatically:
 
 ## How Preferences Work
 
-Preferences are **source-driven**: project files take precedence over global tool availability.
+Preferences are **source-driven**: project files take precedence over
+global tool availability.
 
 | Project File | Preference |
 |--------------|------------|
@@ -103,7 +114,9 @@ Preferences are **source-driven**: project files take precedence over global too
 
 ## Design Decisions
 
-- **No volatile data** — Memory/disk stats excluded (breaks prompt caching)
+- **No volatile data** — Memory/disk stats and git branch/status/commits
+  are excluded: they change mid-session and break prompt caching. Git repo
+  membership is still detected internally, but never injected.
 - **No network check** — No internet = no Pi session; check is pointless
 - **Conditional sections** — Security only shown when noteworthy (root)
 - **Compact XML** — Minimal token overhead

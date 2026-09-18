@@ -1,10 +1,11 @@
 # Environment Awareness Extension for Pi
 
-A Pi extension that injects host environment context into the system prompt via XML, helping the LLM understand the runtime it's working in.
+A Pi extension that injects host environment context into the system prompt
+via XML, helping the LLM understand the runtime it's working in.
 
 ## Project Structure
 
-```
+```text
 .
 ├── index.ts        # Extension entry point — hooks and command registration
 ├── detectors.ts    # Environment detection functions
@@ -15,7 +16,8 @@ A Pi extension that injects host environment context into the system prompt via 
 ## How It Works
 
 1. `session_start` — Detects environment, caches result, shows status in footer
-2. `before_agent_start` — Injects `<host-environment>` XML block into system prompt
+2. `before_agent_start` — Injects `<host-environment>` XML block into system
+   prompt
 3. `session_shutdown` — Cleans up cached state
 
 ## What It Detects
@@ -26,16 +28,19 @@ A Pi extension that injects host environment context into the system prompt via 
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown if root) |
 | **Dev Tools** | Package manager (from lock files) |
-| **Git** | Branch, default branch, dirty/clean status with file count, 3 recent commits |
-| **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc.) |
-| **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip) |
+| **Git** | Repo membership detected internally only — branch/status/commits are excluded (mid-session changes break prompt caching) |
+| **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc.) and modern CLI replacements (rg, ast-grep, fd, bat, eza, jq, delta, sd, difft, gh, tokei, yq, xh) |
+| **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip, prefer rg over grep, prefer ast-grep for structural code search) |
 | **Locale** | Timezone, language |
 | **Project Config** | Version files, test runner, linter, formatter, TypeScript version, monorepo, CI configs, editor config, npm scripts, databases, automation tools, .env.example, tsconfig strict |
 
 ## Design Decisions
 
-- **No volatile data** — Memory/disk stats are excluded because they change constantly, which would break prompt caching
-- **No network check** — If there's no internet, there's no Pi session; check is pointless
+- **No volatile data** — Memory/disk stats and git branch/status/commits are
+  excluded because they change mid-session, which would break prompt caching.
+  Git repo membership is still detected internally but never injected.
+- **No network check** — If there's no internet, there's no Pi session;
+  check is pointless
 - **Conditional sections** — Security only shown when noteworthy (root)
 - **Compact XML** — Minimal token overhead
 
@@ -48,16 +53,6 @@ A Pi extension that injects host environment context into the system prompt via 
 <shell>/bin/fish</shell>
 </system>
 <package-manager>bun</package-manager>
-<git>
-<branch>main</branch>
-<default>main</default>
-<status>dirty (3 files)</status>
-<recent-commits>
-    <commit>abc1234 fix: auth flow</commit>
-    <commit>def5678 feat: add login</commit>
-    <commit>ghi9012 refactor: utils</commit>
-</recent-commits>
-</git>
 <tools>
   <tool name="bun" version="1.4.0"/>
   <tool name="node" version="22.0.0"/>
@@ -97,4 +92,5 @@ A Pi extension that injects host environment context into the system prompt via 
 
 ## Development
 
-The extension is symlinked into `~/.pi/agent/extensions/environment-awareness`. Changes here take effect on `/reload` or Pi restart.
+The extension is symlinked into `~/.pi/agent/extensions/environment-awareness`.
+Changes here take effect on `/reload` or Pi restart.

@@ -14,8 +14,8 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import os from "node:os";
+import { join } from "node:path";
 
 export interface EnvironmentInfo {
 	os: {
@@ -30,13 +30,10 @@ export interface EnvironmentInfo {
 	isCI: boolean;
 	ciPlatform?: string;
 	packageManager?: string;
-	git?: {
-		branch: string;
-		isDirty: boolean;
-		isRepo: boolean;
-		dirtyFileCount: number;
-		recentCommits: string[];
-	};
+	// NOTE: isGitRepo is detected but not injected into the prompt — anything
+	// git-derived (branch, dirty status) changes constantly and would bust
+	// the prompt cache. It only feeds /env display and refresh logic.
+	isGitRepo?: boolean;
 	tools: ToolInfo[];
 	preferences: string[];
 	security: {
@@ -204,37 +201,13 @@ function detectPackageManager(cwd: string): string | undefined {
 }
 
 /**
- * Get git status information
+ * Detect whether the cwd is inside a git repository.
+ * Repo membership is stable, but no git-derived fields (branch, dirty
+ * status) are returned or injected — see the isGitRepo note above.
  */
-function detectGit(cwd: string): EnvironmentInfo["git"] {
-	const isRepo = existsSync(join(cwd, ".git"));
-	if (!isRepo) {
-		const gitDir = safeExec("git rev-parse --git-dir", cwd);
-		if (!gitDir) return undefined;
-	}
-
-	const branch = safeExec("git rev-parse --abbrev-ref HEAD", cwd) || "unknown";
-	const status = safeExec("git status --porcelain", cwd);
-	const isDirty = status !== undefined && status.length > 0;
-
-	// Count dirty files
-	const dirtyFileCount = isDirty
-		? status!.split("\n").filter((line) => line.trim().length > 0).length
-		: 0;
-
-	// Recent commits
-	const logOutput = safeExec("git log --oneline -n 3", cwd);
-	const recentCommits = logOutput
-		? logOutput.split("\n").filter((line) => line.trim().length > 0)
-		: [];
-
-	return {
-		branch,
-		isDirty,
-		isRepo: true,
-		dirtyFileCount,
-		recentCommits,
-	};
+function detectGitRepo(cwd: string): boolean {
+	if (existsSync(join(cwd, ".git"))) return true;
+	return safeExec("git rev-parse --git-dir", cwd) !== undefined;
 }
 
 /**
@@ -319,26 +292,26 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 				...pkg.dependencies,
 				...pkg.devDependencies,
 			};
-			if (allDeps["vitest"]) testRunner = "vitest";
-			else if (allDeps["jest"]) testRunner = "jest";
-			else if (allDeps["mocha"]) testRunner = "mocha";
+			if (allDeps.vitest) testRunner = "vitest";
+			else if (allDeps.jest) testRunner = "jest";
+			else if (allDeps.mocha) testRunner = "mocha";
 			else if (allDeps["@playwright/test"]) testRunner = "playwright";
-			else if (allDeps["cypress"]) testRunner = "cypress";
-			else if (allDeps["ava"]) testRunner = "ava";
-			else if (allDeps["tape"]) testRunner = "tape";
+			else if (allDeps.cypress) testRunner = "cypress";
+			else if (allDeps.ava) testRunner = "ava";
+			else if (allDeps.tape) testRunner = "tape";
 
 			// Linters
-			if (allDeps["eslint"]) linter = "eslint";
+			if (allDeps.eslint) linter = "eslint";
 			else if (allDeps["@biomejs/biome"]) linter = "biome";
-			else if (allDeps["oxlint"]) linter = "oxlint";
+			else if (allDeps.oxlint) linter = "oxlint";
 
 			// Formatters
-			if (allDeps["prettier"]) formatter = "prettier";
+			if (allDeps.prettier) formatter = "prettier";
 			else if (allDeps["@biomejs/biome"]) formatter = "biome";
 
 			// TypeScript version
-			if (allDeps["typescript"]) {
-				typescriptVersion = allDeps["typescript"];
+			if (allDeps.typescript) {
+				typescriptVersion = allDeps.typescript;
 			}
 
 			// Monorepo detection
@@ -502,6 +475,11 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 
 /**
  * Detect available development tools and their versions
+ *
+ * Probes run serially (2 execSync spawns per tool), so detection cost grows
+ * linearly with the tool list. Acceptable at session start (~0.5s for ~25
+ * tools on a typical Linux box); revisit with async probes only if slow PATH
+ * environments (Windows, network mounts) make this measurable in practice.
  */
 function detectTools(cwd: string): {
 	tools: ToolInfo[];
@@ -520,6 +498,20 @@ function detectTools(cwd: string): {
 		{ name: "pip", cmd: "pip", versionArg: "--version" },
 		{ name: "docker", cmd: "docker", versionArg: "--version" },
 		{ name: "git", cmd: "git", versionArg: "--version" },
+		// Modern CLI replacements — faster/better alternatives to classic Unix commands
+		{ name: "rg", cmd: "rg", versionArg: "--version" },
+		{ name: "ast-grep", cmd: "ast-grep", versionArg: "--version" },
+		{ name: "fd", cmd: "fd", versionArg: "--version" },
+		{ name: "bat", cmd: "bat", versionArg: "--version" },
+		{ name: "eza", cmd: "eza", versionArg: "--version" },
+		{ name: "jq", cmd: "jq", versionArg: "--version" },
+		{ name: "delta", cmd: "delta", versionArg: "--version" },
+		{ name: "sd", cmd: "sd", versionArg: "--version" },
+		{ name: "difft", cmd: "difft", versionArg: "--version" },
+		{ name: "gh", cmd: "gh", versionArg: "--version" },
+		{ name: "tokei", cmd: "tokei", versionArg: "--version" },
+		{ name: "yq", cmd: "yq", versionArg: "--version" },
+		{ name: "xh", cmd: "xh", versionArg: "--version" },
 	];
 
 	const tools: ToolInfo[] = [];
@@ -534,9 +526,14 @@ function detectTools(cwd: string): {
 		if (!rawVersion) continue;
 
 		// Extract version number (e.g., "bun 1.1.4" -> "1.1.4", "node v22.0.0" -> "22.0.0")
-		const versionMatch = rawVersion.match(/(\d+\.\d+\.\d+[\w.-]*)/);
+		// Char class includes ":" so toolchain build metadata is preserved
+		// (e.g., "go version go1.27.1-X:nodwarf5" -> "1.27.1-X:nodwarf5")
+		const versionMatch = rawVersion.match(/(\d+\.\d+\.\d+[\w.:-]*)/);
 		const version = versionMatch?.[1] || rawVersion;
 
+		// Report the probed command name, not the version banner's product
+		// name: the tools list tells the model what is invocable on PATH, and
+		// a shimmed command (e.g. jq -> jaq) is still invoked as `jq`.
 		tools.push({ name: tool.name, version });
 	}
 
@@ -568,6 +565,47 @@ function detectTools(cwd: string): {
 		preferences.push("use uv");
 	}
 
+	// Modern CLI preferences: prefer modern replacements over classic Unix commands
+	// These tools are faster, more user-friendly, and produce better output
+	// Only emit when the modern tool is actually available
+	const modernPrefs: Array<[string, string]> = [
+		["rg", "grep"],
+		["fd", "find"],
+		["bat", "cat"],
+		["eza", "ls"],
+		["sd", "sed"],
+	];
+	for (const [modern, classic] of modernPrefs) {
+		if (has(modern)) {
+			preferences.push(`prefer ${modern} over ${classic}`);
+		}
+	}
+	if (has("ast-grep")) {
+		preferences.push(
+			"prefer ast-grep for structural code search/refactor (pattern syntax: 'console.log($MSG)')",
+		);
+	}
+	if (has("jq")) {
+		preferences.push("use jq for JSON processing");
+	}
+	if (has("delta")) {
+		preferences.push("use delta for git diff output");
+	}
+	if (has("difft")) {
+		preferences.push("use difft for structural code diffs");
+	}
+	if (has("gh")) {
+		preferences.push("use gh CLI for GitHub operations");
+	}
+	if (has("yq")) {
+		preferences.push("use yq for YAML/TOML/XML processing");
+	}
+	if (has("xh")) {
+		preferences.push(
+			"prefer xh over curl for JSON API requests (use --check-status; output body only with --print=b)",
+		);
+	}
+
 	return { tools, preferences };
 }
 
@@ -596,7 +634,7 @@ export function gatherEnvironment(cwd: string): EnvironmentInfo {
 		isCI: ci.isCI,
 		ciPlatform: ci.platform,
 		packageManager: detectPackageManager(cwd),
-		git: detectGit(cwd),
+		isGitRepo: detectGitRepo(cwd),
 		tools,
 		preferences,
 		security: detectSecurity(),
@@ -654,29 +692,8 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 		sections.push(`<package-manager>${info.packageManager}</package-manager>`);
 	}
 
-	// Git (if in repo)
-	if (info.git?.isRepo) {
-		const gitLines = [`<branch>${info.git.branch}</branch>`];
-
-		// Status with file count
-		if (info.git.isDirty) {
-			gitLines.push(
-				`<status>dirty (${info.git.dirtyFileCount} file${info.git.dirtyFileCount === 1 ? "" : "s"})</status>`,
-			);
-		} else {
-			gitLines.push("<status>clean</status>");
-		}
-
-		// Recent commits
-		if (info.git.recentCommits.length > 0) {
-			const commitLines = info.git.recentCommits
-				.map((c) => `    <commit>${c}</commit>`)
-				.join("\n");
-			gitLines.push(`<recent-commits>\n${commitLines}\n</recent-commits>`);
-		}
-
-		sections.push(`<git>\n${gitLines.join("\n")}\n</git>`);
-	}
+	// Git repo membership is detected but intentionally not injected —
+	// see the isGitRepo note in EnvironmentInfo.
 
 	// Tools (available dev tools with versions)
 	if (info.tools.length > 0) {

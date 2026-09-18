@@ -9,11 +9,11 @@
  * - Shell detection
  * - Container/VM detection (Docker, WSL)
  * - CI/CD environment detection
- * - Hardware resources (CPU, RAM, disk)
- * - Network status (connectivity, proxy)
  * - Security context (root detection)
  * - Package manager detection (from lock files)
- * - Git branch and status
+ * - Git repo membership (repo yes/no only — branch/status are excluded as cache-unstable)
+ * - Dev tool detection with versions (incl. modern CLI replacements)
+ * - Project config detection (test runner, linter, monorepo, CI configs)
  * - Locale and timezone
  *
  * Usage:
@@ -23,8 +23,11 @@
  * into the system prompt before each agent turn.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { gatherEnvironment, formatEnvironment } from "./detectors";
+import type {
+	BeforeAgentStartEventResult,
+	ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
+import { formatEnvironment, gatherEnvironment } from "./detectors";
 
 export default function environmentAwareness(pi: ExtensionAPI) {
 	// Cache environment info for the session (re-detect on session start)
@@ -36,22 +39,19 @@ export default function environmentAwareness(pi: ExtensionAPI) {
 			const info = gatherEnvironment(ctx.cwd);
 			cachedEnv = formatEnvironment(info);
 
-			// Show a brief status in the footer
+			// Only show the footer status when something noteworthy is detected;
+			// plain OS/arch (e.g. "Linux/x64") is noise.
 			if (ctx.hasUI) {
-				const osName =
-					{
-						darwin: "macOS",
-						linux: "Linux",
-						win32: "Windows",
-					}[info.os.platform] || info.os.platform;
-
 				const extras: string[] = [];
 				if (info.isWSL) extras.push("WSL");
 				if (info.isDocker) extras.push("Docker");
 				if (info.isCI) extras.push("CI");
 
-				const suffix = extras.length > 0 ? ` (${extras.join(", ")})` : "";
-				ctx.ui.setStatus("env", `${osName}/${info.os.arch}${suffix}`);
+				// Clear any stale status from a previous session state
+				ctx.ui.setStatus(
+					"env",
+					extras.length > 0 ? extras.join(", ") : undefined,
+				);
 			}
 		} catch (err) {
 			// Don't break pi if detection fails
@@ -72,17 +72,30 @@ export default function environmentAwareness(pi: ExtensionAPI) {
 			}
 		}
 
-		return {
-			systemPrompt: `${event.systemPrompt}
-
-<host-environment>
+		// Hosts disagree on the systemPrompt contract: Pi uses a scalar string
+		// (dist/core/extensions/types.d.ts:740), OMP uses an array of prompt
+		// sections (dist/types/extensibility/extensions/types.d.ts:796). Branch
+		// on the runtime shape so one build serves both.
+		const block = `<host-environment>
 The following is information about the host machine and development environment.
 Use this context to write correct commands, paths, and configurations for this system.
 
 ${cachedEnv}
-</host-environment>
-`,
-		};
+</host-environment>`;
+
+		if (Array.isArray(event.systemPrompt)) {
+			// OMP: append as a chained prompt section. OMP types systemPrompt
+			// as string[] while Pi (the local types here) types it as string,
+			// so cast only at this boundary.
+			return {
+				systemPrompt: [...event.systemPrompt, block],
+			} as unknown as BeforeAgentStartEventResult;
+		}
+
+		// Pi: scalar replacement prompt
+		return {
+			systemPrompt: `${event.systemPrompt}\n\n${block}\n`,
+		} satisfies BeforeAgentStartEventResult;
 	});
 
 	// Clean up on shutdown
@@ -93,7 +106,7 @@ ${cachedEnv}
 		}
 	});
 
-	// Refresh after compaction — git status may be stale after many edits
+	// Refresh after compaction — tool versions may be stale after upgrades
 	// ponytail: compaction already busts the conversation cache, so re-detection is free
 	pi.on("session_compact", async (_event, ctx) => {
 		try {
