@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatEnvironment, gatherEnvironment } from "./detectors";
+import {
+	formatBytes,
+	formatEnvironment,
+	gatherEnvironment,
+	parseCpuQuotaV1,
+	parseCpuQuotaV2,
+	parseMemoryLimitV1,
+	parseMemoryLimitV2,
+} from "./detectors";
 
 const TEST_DIR = join(import.meta.dir, ".test-tmp");
 
@@ -643,6 +651,72 @@ describe("Environment Detection", () => {
 
 			expect(xml).toContain("<config>/opt/a&amp;b/&lt;config&gt;</config>");
 			expect(xml).not.toContain("/opt/a&b/");
+		});
+	});
+
+	describe("Cgroup Parsers", () => {
+		it("parses cgroup v2 cpu.max with a quota", () => {
+			expect(parseCpuQuotaV2("200000 100000")).toBe(2);
+			expect(parseCpuQuotaV2("150000 100000")).toBe(1); // floor, not round
+			expect(parseCpuQuotaV2("50000 100000")).toBe(1); // clamped to >= 1
+		});
+
+		it("returns undefined for v2 max (no quota)", () => {
+			expect(parseCpuQuotaV2("max 100000")).toBeUndefined();
+		});
+
+		it("returns undefined for malformed v2 content", () => {
+			expect(parseCpuQuotaV2("garbage")).toBeUndefined();
+			expect(parseCpuQuotaV2("")).toBeUndefined();
+			expect(parseCpuQuotaV2("0 100000")).toBeUndefined();
+		});
+
+		it("parses cgroup v1 quota/period", () => {
+			expect(parseCpuQuotaV1("400000", "100000")).toBe(4);
+			expect(parseCpuQuotaV1("150000\n", "100000\n")).toBe(1);
+		});
+
+		it("returns undefined for v1 unlimited (-1) or malformed", () => {
+			expect(parseCpuQuotaV1("-1", "100000")).toBeUndefined();
+			expect(parseCpuQuotaV1("abc", "100000")).toBeUndefined();
+			expect(parseCpuQuotaV1("200000", "0")).toBeUndefined();
+		});
+
+		it("parses cgroup v2 memory.max", () => {
+			expect(parseMemoryLimitV2("536870912")).toBe(536870912);
+			expect(parseMemoryLimitV2("max")).toBeUndefined();
+			expect(parseMemoryLimitV2("garbage")).toBeUndefined();
+		});
+
+		it("parses cgroup v1 memory limit, treating the sentinel as unlimited", () => {
+			expect(parseMemoryLimitV1("536870912")).toBe(536870912);
+			// v1's "no limit" sentinel is a huge value, not -1
+			expect(parseMemoryLimitV1("9223372036854771712")).toBeUndefined();
+			expect(parseMemoryLimitV1("-1")).toBeUndefined();
+		});
+
+		it("formats bytes as KiB/MiB/GiB without overstating", () => {
+			expect(formatBytes(536870912)).toBe("512MiB");
+			expect(formatBytes(2147483648)).toBe("2GiB");
+			expect(formatBytes(5368709120)).toBe("5GiB");
+			expect(formatBytes(524288)).toBe("512KiB"); // sub-MiB, must not round up
+			expect(formatBytes(512)).toBe("512B"); // sub-KiB, report raw bytes
+		});
+	});
+
+	describe("Memory Limit", () => {
+		it("emits memory-limit only when a limit is set, labeled as a limit", () => {
+			const info = gatherEnvironment(TEST_DIR);
+
+			info.memoryLimitBytes = 536870912;
+			let xml = formatEnvironment(info);
+			expect(xml).toContain(
+				"<memory-limit>512MiB (cgroup limit)</memory-limit>",
+			);
+
+			delete info.memoryLimitBytes;
+			xml = formatEnvironment(info);
+			expect(xml).not.toContain("<memory-limit>");
 		});
 	});
 

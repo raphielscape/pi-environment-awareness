@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the cgroup CPU quota (v2 `cpu.max`, v1 `cfs_quota/period`) when a quota is
   set, else `os.cpus().length` — `os.cpus()` reports host CPUs inside
   containers and would mislead parallelism hints.
+- Cgroup memory limit, emitted as `<memory-limit>` only when the cgroup
+  enforces one (v2 `memory.max`, v1 `memory.limit_in_bytes`). Labeled as a
+  limit, never as available memory. Parsers are pure functions so tests
+  never touch `/sys/fs/cgroup`.
 - XDG base directory detection, emitted only for env vars set to absolute
   paths differing from the spec defaults
 - XML escaping for externally-sourced values (XDG paths, CPU model, shell,

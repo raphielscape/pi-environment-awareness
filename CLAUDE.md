@@ -24,7 +24,7 @@ via XML, helping the LLM understand the runtime it's working in.
 
 | Category | Details |
 |----------|---------|
-| **System** | OS (distro name via `/etc/os-release` on Linux), architecture, version, shell, CPU model + thread count (cgroup-aware) |
+| **System** | OS (distro name via `/etc/os-release` on Linux), architecture, version, shell, CPU model + thread count (cgroup-aware), cgroup memory limit |
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown if root) |
 | **Dev Tools** | Package manager (from lock files) |

@@ -10,7 +10,7 @@ runtime it's working in.
 
 | Category | Detected Info |
 |----------|---------------|
-| **System** | OS (distro name on Linux), architecture, version, shell, CPU model, thread count (cgroup-aware) |
+| **System** | OS (distro name on Linux), architecture, version, shell, CPU model, thread count (cgroup-aware), cgroup memory limit |
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown when noteworthy) |
 | **Dev Tools** | Package manager (from lock files) |

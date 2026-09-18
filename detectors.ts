@@ -31,6 +31,10 @@ export interface EnvironmentInfo {
 	// In containers: cgroup CPU quota (v2 cpu.max, v1 cfs_quota/period),
 	// because os.cpus() reports host CPUs and would mislead.
 	cpuThreads?: number;
+	// Cgroup memory limit in bytes, only set when the cgroup enforces one.
+	// Emitted as a LIMIT, never as "available memory" — the model must not
+	// suggest heap sizes or in-memory workloads that exceed it.
+	memoryLimitBytes?: number;
 	shell: string;
 	isWSL: boolean;
 	isDocker: boolean;
@@ -121,41 +125,104 @@ function detectOS(): EnvironmentInfo["os"] {
 	};
 }
 
+// cgroup v1 reports this sentinel-ish value when no memory limit is set.
+// 2 ** 60, not 1 << 60: bitwise ops coerce to int32, so 1 << 60 === 1 << 28.
+const CGROUP_V1_MEM_UNLIMITED = 2 ** 60;
+
 /**
- * Detect the CPU model name. Omitted when unavailable rather than reported
+ * Pure parsers for cgroup values — exported for tests. Filesystem probing
+ * lives in the cgroup*Limit() wrappers so tests never touch /sys/fs/cgroup.
+ */
+export function parseCpuQuotaV2(content: string): number | undefined {
+	const [quota, period] = content.trim().split(/\s+/);
+	if (quota === "max") return undefined;
+	const q = Number(quota);
+	const p = Number(period);
+	// Math.floor so we never suggest more parallelism than the quota allows
+	if (q > 0 && p > 0) return Math.max(1, Math.floor(q / p));
+	return undefined;
+}
+
+export function parseCpuQuotaV1(
+	quotaRaw: string,
+	periodRaw: string,
+): number | undefined {
+	const quota = Number(quotaRaw.trim());
+	const period = Number(periodRaw.trim());
+	if (quota > 0 && period > 0) return Math.max(1, Math.floor(quota / period));
+	return undefined;
+}
+
+export function parseMemoryLimitV2(content: string): number | undefined {
+	const v = content.trim();
+	if (v === "max") return undefined;
+	const bytes = Number(v);
+	return Number.isFinite(bytes) && bytes > 0 ? bytes : undefined;
+}
+
+export function parseMemoryLimitV1(content: string): number | undefined {
+	const bytes = Number(content.trim());
+	if (Number.isFinite(bytes) && bytes > 0 && bytes < CGROUP_V1_MEM_UNLIMITED) {
+		return bytes;
+	}
+	return undefined;
+}
+
+/** Format a byte count as KiB/MiB/GiB for the prompt */
+export function formatBytes(bytes: number): string {
+	const mib = bytes / (1024 * 1024);
+	if (mib >= 1024) {
+		const gib = mib / 1024;
+		return `${Number.isInteger(gib) ? gib : gib.toFixed(1)}GiB`;
+	}
+	if (mib >= 1) return `${Math.round(mib)}MiB`;
+	// Sub-MiB limits exist (tiny CI containers) — don't round them up
+	if (bytes >= 1024) return `${Math.round(bytes / 1024)}KiB`;
+	return `${bytes}B`;
+}
+
 /**
  * Read the cgroup CPU quota in whole CPUs, if a quota is set.
  * Handles cgroup v2 (cpu.max) and v1 (cpu.cfs_quota_us/cpu.cfs_period_us).
  * Returns undefined when no quota applies ("max", -1, unreadable files).
  */
 function cgroupCpuLimit(): number | undefined {
-	// cgroup v2: "<quota|max> <period>", period in microseconds
+	// cgroup v2: if the file exists, its content decides — don't fall through
+	// to v1 on a v2 hierarchy with no quota set
 	try {
-		const [quota, period] = readFileSync(
-			"/sys/fs/cgroup/cpu.max",
-			"utf-8",
-		).split(/\s+/);
-		if (quota !== "max") {
-			const q = Number(quota);
-			const p = Number(period);
-			if (q > 0 && p > 0) return Math.max(1, Math.floor(q / p));
-		}
-		return undefined; // v2 mounted, no quota — don't fall through to v1
+		return parseCpuQuotaV2(readFileSync("/sys/fs/cgroup/cpu.max", "utf-8"));
 	} catch {
 		// not v2, try v1
 	}
-
-	// cgroup v1: cfs_quota_us / cfs_period_us, -1 means no limit
 	try {
-		const quota = Number(
+		return parseCpuQuotaV1(
 			readFileSync("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "utf-8"),
-		);
-		const period = Number(
 			readFileSync("/sys/fs/cgroup/cpu/cpu.cfs_period_us", "utf-8"),
 		);
-		if (quota > 0 && period > 0) return Math.max(1, Math.floor(quota / period));
 	} catch {
 		// no cgroup v1 cpu controller either
+	}
+	return undefined;
+}
+
+/**
+ * Read the cgroup memory limit in bytes, if one is enforced.
+ * Same v2/v1 split as cgroupCpuLimit. Returns undefined when unlimited.
+ */
+function cgroupMemoryLimit(): number | undefined {
+	try {
+		return parseMemoryLimitV2(
+			readFileSync("/sys/fs/cgroup/memory.max", "utf-8"),
+		);
+	} catch {
+		// not v2, try v1
+	}
+	try {
+		return parseMemoryLimitV1(
+			readFileSync("/sys/fs/cgroup/memory/memory.limit_in_bytes", "utf-8"),
+		);
+	} catch {
+		// no cgroup v1 memory controller either
 	}
 	return undefined;
 }
@@ -739,6 +806,7 @@ export function gatherEnvironment(cwd: string): EnvironmentInfo {
 		os: detectOS(),
 		cpu: cpu.model,
 		cpuThreads: cpu.threads,
+		memoryLimitBytes: cgroupMemoryLimit(),
 		shell: detectShell(),
 		isWSL: detectWSL(),
 		isDocker: detectDocker(),
@@ -783,6 +851,13 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 	if (info.cpu) {
 		const threads = info.cpuThreads ? `, ${info.cpuThreads} threads` : "";
 		systemLines.push(`<cpu>${xmlEscape(info.cpu)}${threads}</cpu>`);
+	}
+	// Explicitly labeled as a LIMIT so the model doesn't read it as
+	// available/free memory
+	if (info.memoryLimitBytes) {
+		systemLines.push(
+			`<memory-limit>${formatBytes(info.memoryLimitBytes)} (cgroup limit)</memory-limit>`,
+		);
 	}
 
 	// Special environments
