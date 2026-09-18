@@ -10,7 +10,7 @@ runtime it's working in.
 
 | Category | Detected Info |
 |----------|---------------|
-| **System** | OS (distro name on Linux), architecture, version, shell, CPU model |
+| **System** | OS (distro name on Linux), architecture, version, shell, CPU model, thread count (cgroup-aware) |
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown when noteworthy) |
 | **Dev Tools** | Package manager (from lock files) |
@@ -79,7 +79,7 @@ The extension automatically:
 <system>
 <os>CachyOS (x64)</os>
 <shell>/bin/fish</shell>
-<cpu>AMD Ryzen 9 7950X 16-Core Processor</cpu>
+<cpu>AMD Ryzen 9 7950X 16-Core Processor, 32 threads</cpu>
 </system>
 <package-manager>bun</package-manager>
 <tools>

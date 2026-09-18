@@ -25,9 +25,12 @@ export interface EnvironmentInfo {
 		release: string;
 	};
 	// CPU model name from os.cpus()[0].model — stable hardware fact, safe
-	// for prompt caching. Deliberately no thread count: os.cpus() reports
-	// host CPUs inside containers, which would mislead parallelism hints.
+	// for prompt caching.
 	cpu?: string;
+	// Parallelism hint for build flags. On bare metal: os.cpus().length.
+	// In containers: cgroup CPU quota (v2 cpu.max, v1 cfs_quota/period),
+	// because os.cpus() reports host CPUs and would mislead.
+	cpuThreads?: number;
 	shell: string;
 	isWSL: boolean;
 	isDocker: boolean;
@@ -120,11 +123,57 @@ function detectOS(): EnvironmentInfo["os"] {
 
 /**
  * Detect the CPU model name. Omitted when unavailable rather than reported
- * as "unknown" — an absent tag is cheaper than a meaningless one.
+/**
+ * Read the cgroup CPU quota in whole CPUs, if a quota is set.
+ * Handles cgroup v2 (cpu.max) and v1 (cpu.cfs_quota_us/cpu.cfs_period_us).
+ * Returns undefined when no quota applies ("max", -1, unreadable files).
  */
-function detectCpu(): string | undefined {
-	const model = os.cpus()[0]?.model.trim();
-	return model || undefined;
+function cgroupCpuLimit(): number | undefined {
+	// cgroup v2: "<quota|max> <period>", period in microseconds
+	try {
+		const [quota, period] = readFileSync(
+			"/sys/fs/cgroup/cpu.max",
+			"utf-8",
+		).split(/\s+/);
+		if (quota !== "max") {
+			const q = Number(quota);
+			const p = Number(period);
+			if (q > 0 && p > 0) return Math.max(1, Math.floor(q / p));
+		}
+		return undefined; // v2 mounted, no quota — don't fall through to v1
+	} catch {
+		// not v2, try v1
+	}
+
+	// cgroup v1: cfs_quota_us / cfs_period_us, -1 means no limit
+	try {
+		const quota = Number(
+			readFileSync("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "utf-8"),
+		);
+		const period = Number(
+			readFileSync("/sys/fs/cgroup/cpu/cpu.cfs_period_us", "utf-8"),
+		);
+		if (quota > 0 && period > 0) return Math.max(1, Math.floor(quota / period));
+	} catch {
+		// no cgroup v1 cpu controller either
+	}
+	return undefined;
+}
+
+/**
+ * Detect the CPU model name and an honest parallelism hint.
+ *
+ * Thread count comes from the cgroup CPU quota when one is set (containers),
+ * otherwise from os.cpus().length (bare metal / unlimited). This avoids the
+ * classic container bug where os.cpus() reports host CPUs and the model
+ * suggests -j<host-cores> inside a 2-core cgroup.
+ *
+ * Model is omitted when unavailable rather than reported as "unknown".
+ */
+function detectCpu(): { model?: string; threads?: number } {
+	const model = os.cpus()[0]?.model.trim() || undefined;
+	const threads = cgroupCpuLimit() ?? (os.cpus().length || undefined);
+	return { model, threads };
 }
 
 /**
@@ -684,10 +733,12 @@ function xmlEscape(s: string): string {
 export function gatherEnvironment(cwd: string): EnvironmentInfo {
 	const ci = detectCI();
 	const { tools, preferences } = detectTools(cwd);
+	const cpu = detectCpu();
 
 	return {
 		os: detectOS(),
-		cpu: detectCpu(),
+		cpu: cpu.model,
+		cpuThreads: cpu.threads,
 		shell: detectShell(),
 		isWSL: detectWSL(),
 		isDocker: detectDocker(),
@@ -730,7 +781,8 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 		`<shell>${xmlEscape(info.shell)}</shell>`,
 	];
 	if (info.cpu) {
-		systemLines.push(`<cpu>${xmlEscape(info.cpu)}</cpu>`);
+		const threads = info.cpuThreads ? `, ${info.cpuThreads} threads` : "";
+		systemLines.push(`<cpu>${xmlEscape(info.cpu)}${threads}</cpu>`);
 	}
 
 	// Special environments

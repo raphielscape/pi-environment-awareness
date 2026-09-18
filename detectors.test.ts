@@ -57,9 +57,22 @@ describe("Environment Detection", () => {
 			}
 		});
 
+		it("should include thread count as a parallelism hint", () => {
+			const info = gatherEnvironment(TEST_DIR);
+
+			// Threads come from the cgroup quota when set, else os.cpus()
+			expect(info.cpuThreads).toBeGreaterThanOrEqual(1);
+
+			const xml = formatEnvironment(info);
+			if (info.cpu) {
+				expect(xml).toContain(`, ${info.cpuThreads} threads</cpu>`);
+			}
+		});
+
 		it("should XML-escape special characters in CPU model", () => {
 			const info = gatherEnvironment(TEST_DIR);
 			info.cpu = "Fake CPU <R&D>";
+			delete info.cpuThreads; // isolate the escaping from the threads suffix
 			const xml = formatEnvironment(info);
 
 			expect(xml).toContain("<cpu>Fake CPU &lt;R&amp;D&gt;</cpu>");
