@@ -38,7 +38,7 @@ describe("before_agent_start host compatibility", () => {
 		expect(sections[1]).toBe("SECTION B");
 		// Last section is the environment block: assert the wrapping contract
 		// and payload, not the exact header copy
-		const env = formatEnvironment(gatherEnvironment(ctx.cwd));
+		const env = formatEnvironment(await gatherEnvironment(ctx.cwd));
 		expect(sections[2].startsWith("<host-environment>\n")).toBe(true);
 		expect(sections[2].endsWith("\n</host-environment>")).toBe(true);
 		expect(sections[2]).toContain(env);
@@ -49,7 +49,7 @@ describe("before_agent_start host compatibility", () => {
 
 		expect(typeof result.systemPrompt).toBe("string");
 		const prompt = result.systemPrompt as string;
-		const env = formatEnvironment(gatherEnvironment(ctx.cwd));
+		const env = formatEnvironment(await gatherEnvironment(ctx.cwd));
 		// Legacy wrapping: base + blank line + wrapped block + trailing newline
 		expect(prompt.startsWith("BASE PROMPT\n\n<host-environment>\n")).toBe(true);
 		expect(prompt.endsWith("</host-environment>\n")).toBe(true);

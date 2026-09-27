@@ -24,15 +24,15 @@ via XML, helping the LLM understand the runtime it's working in.
 
 | Category | Details |
 |----------|---------|
-| **System** | OS (distro name via `/etc/os-release` on Linux), architecture, version, shell, CPU model + thread count (cgroup-aware), cgroup memory limit |
+|**System**|OS (distro name via `/etc/os-release` on Linux), architecture, version, CPU model + thread count (cgroup-aware), cgroup memory limit|
 | **Runtime** | WSL, Docker, CI/CD platform |
 | **Security** | Root/admin user detection (only shown if root) |
 | **Dev Tools** | Package manager (from lock files) |
 | **Git** | Repo membership detected internally only — branch/status/commits are excluded (mid-session changes break prompt caching) |
-| **Tools** | Available dev tools with versions (bun, node, python, go, rust, etc.) and modern CLI replacements (rg, ast-grep, fd, bat, eza, jq, delta, sd, difft, gh, tokei, yq, xh) |
-| **Preferences** | Smart defaults (e.g., prefer bun over node, prefer uv over pip, prefer rg over grep, prefer ast-grep for structural code search) |
+|**Tools**|Available dev tools with versions (bun, node, deno, python, go, rust, etc.) and modern CLI replacements (rg, ast-grep, fd, bat, eza, jq, fzf, shellcheck, delta, sd, difft, gh, yq, xh)|
+|**Preferences**|Source-driven and prohibitive: package.json `packageManager` declaration wins, then lock files (bun/pnpm/yarn/npm/deno), then global tools; directives name forbidden alternatives (e.g. "do not use npm or yarn here", "use rg instead of grep") and missing required tools are called out explicitly|
 | **Locale** | Timezone, language |
-| **Project Config** | Version files, test runner, linter, formatter, TypeScript version, monorepo, CI configs, editor config, npm scripts, databases, automation tools, .env.example, tsconfig strict |
+|**Project Config**|Version files, node version pin (`.nvmrc`, `.node-version`, `engines.node`), test runner, linter, formatter, TypeScript version, monorepo, CI configs, editor config, npm scripts (capped at 20), databases, automation tools, .env.example, tsconfig strict (JSONC-tolerant)|
 
 ## Design Decisions
 
@@ -51,7 +51,6 @@ via XML, helping the LLM understand the runtime it's working in.
 <host-environment>
 <system>
 <os>CachyOS Linux (x64)</os>
-<shell>/bin/fish</shell>
 </system>
 <package-manager>bun</package-manager>
 <tools>

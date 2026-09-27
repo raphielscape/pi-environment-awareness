@@ -36,7 +36,7 @@ export default function environmentAwareness(pi: ExtensionAPI) {
 	// Detect environment on session start
 	pi.on("session_start", async (_event, ctx) => {
 		try {
-			const info = gatherEnvironment(ctx.cwd);
+			const info = await gatherEnvironment(ctx.cwd);
 			cachedEnv = formatEnvironment(info);
 
 			// Only show the footer status when something noteworthy is detected;
@@ -65,7 +65,7 @@ export default function environmentAwareness(pi: ExtensionAPI) {
 		// Re-detect if not cached (shouldn't happen, but safety net)
 		if (!cachedEnv) {
 			try {
-				const info = gatherEnvironment(ctx.cwd);
+				const info = await gatherEnvironment(ctx.cwd);
 				cachedEnv = formatEnvironment(info);
 			} catch {
 				return; // Skip injection if detection fails
@@ -110,7 +110,7 @@ ${cachedEnv}
 	// ponytail: compaction already busts the conversation cache, so re-detection is free
 	pi.on("session_compact", async (_event, ctx) => {
 		try {
-			const info = gatherEnvironment(ctx.cwd);
+			const info = await gatherEnvironment(ctx.cwd);
 			cachedEnv = formatEnvironment(info);
 		} catch {
 			// Don't break pi if detection fails
@@ -125,16 +125,39 @@ ${cachedEnv}
 
 			if (action === "refresh") {
 				// Force re-detection
-				const info = gatherEnvironment(ctx.cwd);
-				cachedEnv = formatEnvironment(info);
+				try {
+					const info = await gatherEnvironment(ctx.cwd);
+					cachedEnv = formatEnvironment(info);
+				} catch (err) {
+					console.error(
+						"[environment-awareness] Detection failed:",
+						err,
+					);
+					ctx.ui.notify(
+						cachedEnv
+							? "Environment detection failed; showing cached info"
+							: "Environment detection failed; no cached info",
+						"warning",
+					);
+					return;
+				}
 				ctx.ui.notify("Environment info refreshed", "info");
 				return;
 			}
 
 			// Show current environment info
 			if (!cachedEnv) {
-				const info = gatherEnvironment(ctx.cwd);
-				cachedEnv = formatEnvironment(info);
+				try {
+					const info = await gatherEnvironment(ctx.cwd);
+					cachedEnv = formatEnvironment(info);
+				} catch (err) {
+					console.error(
+						"[environment-awareness] Detection failed:",
+						err,
+					);
+					ctx.ui.notify("No environment info available", "warning");
+					return;
+				}
 			}
 
 			ctx.ui.notify(cachedEnv || "No environment info available", "info");
