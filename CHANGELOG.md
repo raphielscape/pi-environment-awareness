@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-27
 
 ### Fixed
 
@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - XDG base directory detection, emitted only for env vars set to absolute
   paths differing from the spec defaults
 - XML escaping for all externally-sourced values rendered into the prompt
-  (OS name, shell, tool names/versions, package manager, preferences,
+  (OS name, tool names/versions, package manager, preferences,
   project-config fields, locale, XDG paths)
 
 ### Changed
