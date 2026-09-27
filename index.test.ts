@@ -1,5 +1,5 @@
-import { describe, it, expect } from "bun:test";
-import { gatherEnvironment, formatEnvironment } from "./detectors";
+import { describe, expect, it } from "bun:test";
+import { formatEnvironment, gatherEnvironment } from "./detectors";
 import environmentAwareness from "./index";
 
 type Handler = (
