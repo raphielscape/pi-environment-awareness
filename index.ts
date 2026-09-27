@@ -23,10 +23,7 @@
  * into the system prompt before each agent turn.
  */
 
-import type {
-	BeforeAgentStartEventResult,
-	ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEventResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatEnvironment, gatherEnvironment } from "./detectors";
 
 export default function environmentAwareness(pi: ExtensionAPI) {
@@ -48,10 +45,7 @@ export default function environmentAwareness(pi: ExtensionAPI) {
 				if (info.isCI) extras.push("CI");
 
 				// Clear any stale status from a previous session state
-				ctx.ui.setStatus(
-					"env",
-					extras.length > 0 ? extras.join(", ") : undefined,
-				);
+				ctx.ui.setStatus("env", extras.length > 0 ? extras.join(", ") : undefined);
 			}
 		} catch (err) {
 			// Don't break pi if detection fails
@@ -129,10 +123,7 @@ ${cachedEnv}
 					const info = await gatherEnvironment(ctx.cwd);
 					cachedEnv = formatEnvironment(info);
 				} catch (err) {
-					console.error(
-						"[environment-awareness] Detection failed:",
-						err,
-					);
+					console.error("[environment-awareness] Detection failed:", err);
 					ctx.ui.notify(
 						cachedEnv
 							? "Environment detection failed; showing cached info"
@@ -151,10 +142,7 @@ ${cachedEnv}
 					const info = await gatherEnvironment(ctx.cwd);
 					cachedEnv = formatEnvironment(info);
 				} catch (err) {
-					console.error(
-						"[environment-awareness] Detection failed:",
-						err,
-					);
+					console.error("[environment-awareness] Detection failed:", err);
 					ctx.ui.notify("No environment info available", "warning");
 					return;
 				}

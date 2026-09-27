@@ -1,48 +1,51 @@
 {
-  "name": "pi-environment-awareness",
-  "version": "1.1.0",
-  "description": "Pi extension that injects host environment context into the system prompt",
-  "type": "module",
-  "main": "index.ts",
-  "scripts": {
-    "check": "tsc --noEmit",
-    "test": "bun test"
-  },
-  "keywords": [
-    "pi-package",
-    "pi",
-    "extension",
-    "environment",
-    "system-info"
-  ],
-  "author": "",
-  "license": "MIT",
-  "omp": {
-    "extensions": [
-      "./index.ts"
-    ]
-  },
-  "pi": {
-    "extensions": [
-      "./index.ts"
-    ]
-  },
-  "devDependencies": {
-    "@types/bun": "^1.4.2",
-    "@types/node": "latest",
-    "typescript": "^7.0.2",
-    "@earendil-works/pi-coding-agent": "^0.85.1"
-  },
-  "peerDependencies": {
-    "@oh-my-pi/pi-coding-agent": "*",
-    "@earendil-works/pi-coding-agent": "*"
-  },
-  "peerDependenciesMeta": {
-    "@oh-my-pi/pi-coding-agent": {
-      "optional": true
-    },
-    "@earendil-works/pi-coding-agent": {
-      "optional": true
-    }
-  }
+	"name": "pi-environment-awareness",
+	"version": "1.1.0",
+	"description": "Pi extension that injects host environment context into the system prompt",
+	"type": "module",
+	"main": "index.ts",
+	"scripts": {
+		"check": "tsc --noEmit",
+		"lint": "biome check",
+		"format": "biome format --write",
+		"test": "bun test"
+	},
+	"keywords": [
+		"pi-package",
+		"pi",
+		"extension",
+		"environment",
+		"system-info"
+	],
+	"author": "",
+	"license": "MIT",
+	"omp": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.14",
+		"@earendil-works/pi-coding-agent": "^0.85.1",
+		"@types/bun": "^1.4.2",
+		"@types/node": "latest",
+		"typescript": "^7.0.2"
+	},
+	"peerDependencies": {
+		"@oh-my-pi/pi-coding-agent": "*",
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"peerDependenciesMeta": {
+		"@oh-my-pi/pi-coding-agent": {
+			"optional": true
+		},
+		"@earendil-works/pi-coding-agent": {
+			"optional": true
+		}
+	}
 }

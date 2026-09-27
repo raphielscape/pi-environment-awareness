@@ -103,10 +103,7 @@ function safeExec(command: string, cwd?: string): string | undefined {
  */
 const execAsync = promisify(exec);
 
-async function safeExecAsync(
-	command: string,
-	cwd?: string,
-): Promise<string | undefined> {
+async function safeExecAsync(command: string, cwd?: string): Promise<string | undefined> {
 	try {
 		const { stdout } = await execAsync(command, {
 			encoding: "utf-8",
@@ -225,10 +222,7 @@ export function parseCpuQuotaV2(content: string): number | undefined {
 	return undefined;
 }
 
-export function parseCpuQuotaV1(
-	quotaRaw: string,
-	periodRaw: string,
-): number | undefined {
+export function parseCpuQuotaV1(quotaRaw: string, periodRaw: string): number | undefined {
 	const quota = Number(quotaRaw.trim());
 	const period = Number(periodRaw.trim());
 	if (quota > 0 && period > 0) return Math.max(1, Math.floor(quota / period));
@@ -293,16 +287,12 @@ function cgroupCpuLimit(): number | undefined {
  */
 function cgroupMemoryLimit(): number | undefined {
 	try {
-		return parseMemoryLimitV2(
-			readFileSync("/sys/fs/cgroup/memory.max", "utf-8"),
-		);
+		return parseMemoryLimitV2(readFileSync("/sys/fs/cgroup/memory.max", "utf-8"));
 	} catch {
 		// not v2, try v1
 	}
 	try {
-		return parseMemoryLimitV1(
-			readFileSync("/sys/fs/cgroup/memory/memory.limit_in_bytes", "utf-8"),
-		);
+		return parseMemoryLimitV1(readFileSync("/sys/fs/cgroup/memory/memory.limit_in_bytes", "utf-8"));
 	} catch {
 		// no cgroup v1 memory controller either
 	}
@@ -331,10 +321,7 @@ function detectCpu(): { model?: string; threads?: number } {
 function detectWSL(): boolean {
 	if (process.platform !== "linux") return false;
 	try {
-		const release = readFileSync(
-			"/proc/sys/kernel/osrelease",
-			"utf-8",
-		).toLowerCase();
+		const release = readFileSync("/proc/sys/kernel/osrelease", "utf-8").toLowerCase();
 		return release.includes("microsoft") || release.includes("wsl");
 	} catch {
 		return false;
@@ -370,14 +357,12 @@ function detectDocker(): boolean {
  */
 function detectCI(): { isCI: boolean; platform?: string } {
 	if (process.env.CI === "true" || process.env.CI === "1") {
-		if (process.env.GITHUB_ACTIONS)
-			return { isCI: true, platform: "GitHub Actions" };
+		if (process.env.GITHUB_ACTIONS) return { isCI: true, platform: "GitHub Actions" };
 		if (process.env.GITLAB_CI) return { isCI: true, platform: "GitLab CI" };
 		if (process.env.CIRCLECI) return { isCI: true, platform: "CircleCI" };
 		if (process.env.TRAVIS) return { isCI: true, platform: "Travis CI" };
 		if (process.env.JENKINS_URL) return { isCI: true, platform: "Jenkins" };
-		if (process.env.AZURE_PIPELINES)
-			return { isCI: true, platform: "Azure Pipelines" };
+		if (process.env.AZURE_PIPELINES) return { isCI: true, platform: "Azure Pipelines" };
 		if (process.env.BUILDKITE) return { isCI: true, platform: "Buildkite" };
 		return { isCI: true, platform: "Unknown" };
 	}
@@ -490,15 +475,9 @@ function detectProjectContext(cwd: string): Record<string, string> {
 		context.js_runtime = "node";
 	}
 
-	if (
-		existsSync(join(cwd, "uv.lock")) ||
-		existsSync(join(cwd, "pyproject.toml"))
-	) {
+	if (existsSync(join(cwd, "uv.lock")) || existsSync(join(cwd, "pyproject.toml"))) {
 		context.python_tool = "uv";
-	} else if (
-		existsSync(join(cwd, "requirements.txt")) ||
-		existsSync(join(cwd, "setup.py"))
-	) {
+	} else if (existsSync(join(cwd, "requirements.txt")) || existsSync(join(cwd, "setup.py"))) {
 		context.python_tool = "pip";
 	}
 
@@ -527,17 +506,12 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 
 	// Version files
 	if (existsSync(join(cwd, ".nvmrc"))) versionFiles.push(".nvmrc");
-	if (existsSync(join(cwd, ".node-version")))
-		versionFiles.push(".node-version");
-	if (existsSync(join(cwd, ".tool-versions")))
-		versionFiles.push(".tool-versions");
-	if (existsSync(join(cwd, ".python-version")))
-		versionFiles.push(".python-version");
-	if (existsSync(join(cwd, ".ruby-version")))
-		versionFiles.push(".ruby-version");
+	if (existsSync(join(cwd, ".node-version"))) versionFiles.push(".node-version");
+	if (existsSync(join(cwd, ".tool-versions"))) versionFiles.push(".tool-versions");
+	if (existsSync(join(cwd, ".python-version"))) versionFiles.push(".python-version");
+	if (existsSync(join(cwd, ".ruby-version"))) versionFiles.push(".ruby-version");
 	if (existsSync(join(cwd, ".go-version"))) versionFiles.push(".go-version");
-	if (existsSync(join(cwd, "rust-toolchain.toml")))
-		versionFiles.push("rust-toolchain.toml");
+	if (existsSync(join(cwd, "rust-toolchain.toml"))) versionFiles.push("rust-toolchain.toml");
 
 	// Test runners (check package.json and config files)
 	const pkgJsonPath = join(cwd, "package.json");
@@ -589,11 +563,7 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 			}
 
 			// Node version range from engines when no pin file was found
-			if (
-				!nodeVersion &&
-				typeof pkg.engines?.node === "string" &&
-				pkg.engines.node
-			) {
+			if (!nodeVersion && typeof pkg.engines?.node === "string" && pkg.engines.node) {
 				nodeVersion = pkg.engines.node;
 			}
 
@@ -631,14 +601,10 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 	if (!linter && existsSync(join(cwd, "biome.jsonc"))) linter = "biome";
 	if (!linter && existsSync(join(cwd, ".oxlintrc.json"))) linter = "oxlint";
 
-	if (!formatter && existsSync(join(cwd, ".prettierrc")))
-		formatter = "prettier";
-	if (!formatter && existsSync(join(cwd, ".prettierrc.json")))
-		formatter = "prettier";
-	if (!formatter && existsSync(join(cwd, ".prettierrc.js")))
-		formatter = "prettier";
-	if (!formatter && existsSync(join(cwd, "prettier.config.js")))
-		formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, ".prettierrc"))) formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, ".prettierrc.json"))) formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, ".prettierrc.js"))) formatter = "prettier";
+	if (!formatter && existsSync(join(cwd, "prettier.config.js"))) formatter = "prettier";
 	if (!formatter && existsSync(join(cwd, "biome.json"))) formatter = "biome";
 	if (!formatter && existsSync(join(cwd, "biome.jsonc"))) formatter = "biome";
 
@@ -649,26 +615,17 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 	if (existsSync(join(cwd, "lerna.json"))) isMonorepo = true;
 
 	// CI config files
-	if (existsSync(join(cwd, ".github", "workflows")))
-		ciConfigs.push("github-actions");
+	if (existsSync(join(cwd, ".github", "workflows"))) ciConfigs.push("github-actions");
 	if (existsSync(join(cwd, ".gitlab-ci.yml"))) ciConfigs.push("gitlab-ci");
 	if (existsSync(join(cwd, "Jenkinsfile"))) ciConfigs.push("jenkins");
-	if (existsSync(join(cwd, ".circleci", "config.yml")))
-		ciConfigs.push("circleci");
+	if (existsSync(join(cwd, ".circleci", "config.yml"))) ciConfigs.push("circleci");
 	if (existsSync(join(cwd, ".travis.yml"))) ciConfigs.push("travis");
-	if (existsSync(join(cwd, "azure-pipelines.yml")))
-		ciConfigs.push("azure-pipelines");
-	if (existsSync(join(cwd, ".buildkite", "pipeline.yml")))
-		ciConfigs.push("buildkite");
+	if (existsSync(join(cwd, "azure-pipelines.yml"))) ciConfigs.push("azure-pipelines");
+	if (existsSync(join(cwd, ".buildkite", "pipeline.yml"))) ciConfigs.push("buildkite");
 	if (existsSync(join(cwd, "Dockerfile"))) ciConfigs.push("dockerfile");
 
 	// Docker-compose: check for CI config AND database services in one pass
-	const dcFiles = [
-		"docker-compose.yml",
-		"docker-compose.yaml",
-		"compose.yml",
-		"compose.yaml",
-	];
+	const dcFiles = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"];
 	for (const dcFile of dcFiles) {
 		const dcPath = join(cwd, dcFile);
 		if (!existsSync(dcPath)) continue;
@@ -678,14 +635,10 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 			if (!databases) databases = [];
 			if (content.includes("postgres") && !databases.includes("postgresql"))
 				databases.push("postgresql");
-			if (content.includes("mysql") && !databases.includes("mysql"))
-				databases.push("mysql");
-			if (content.includes("mongo") && !databases.includes("mongodb"))
-				databases.push("mongodb");
-			if (content.includes("redis") && !databases.includes("redis"))
-				databases.push("redis");
-			if (content.includes("sqlite") && !databases.includes("sqlite"))
-				databases.push("sqlite");
+			if (content.includes("mysql") && !databases.includes("mysql")) databases.push("mysql");
+			if (content.includes("mongo") && !databases.includes("mongodb")) databases.push("mongodb");
+			if (content.includes("redis") && !databases.includes("redis")) databases.push("redis");
+			if (content.includes("sqlite") && !databases.includes("sqlite")) databases.push("sqlite");
 		} catch {
 			// Invalid docker-compose, skip DB detection
 		}
@@ -700,9 +653,7 @@ function detectProjectConfig(cwd: string): EnvironmentInfo["projectConfig"] {
 	if (existsSync(tsconfigPath)) {
 		try {
 			// tsconfig allows comments and trailing commas (JSONC dialect)
-			const tsconfig = JSON.parse(
-				stripJsonc(readFileSync(tsconfigPath, "utf-8")),
-			);
+			const tsconfig = JSON.parse(stripJsonc(readFileSync(tsconfigPath, "utf-8")));
 			if (tsconfig.compilerOptions?.strict === true) {
 				tsconfigStrict = true;
 			}
@@ -853,8 +804,7 @@ async function detectTools(cwd: string): Promise<{
 	const python3 = probed.find((p) => p?.name === "python3");
 	const tools: ToolInfo[] = probed.filter(
 		(p): p is ToolInfo =>
-			p !== undefined &&
-			!(p.name === "python" && python3 && python3.version === p.version),
+			p !== undefined && !(p.name === "python" && python3 && python3.version === p.version),
 	);
 
 	// Source-driven preferences: project context > global availability
@@ -875,27 +825,19 @@ async function detectTools(cwd: string): Promise<{
 					: "use bun for JS deps and scripts (project has bun lockfile); do not use node/npm/yarn here",
 			);
 		} else {
-			preferences.push(
-				"this is a bun project but bun is not installed on PATH",
-			);
+			preferences.push("this is a bun project but bun is not installed on PATH");
 		}
 	} else if (projectCtx.js_runtime === "deno") {
 		if (has("deno")) {
-			preferences.push(
-				"use deno (project has deno.json or deno.lock); do not use node/npm here",
-			);
+			preferences.push("use deno (project has deno.json or deno.lock); do not use node/npm here");
 		} else {
-			preferences.push(
-				"this is a Deno project but deno is not installed on PATH",
-			);
+			preferences.push("this is a Deno project but deno is not installed on PATH");
 		}
 	} else if (projectCtx.js_runtime === "node") {
 		const pm = projectCtx.js_package_manager || "npm";
 		const nodeOk = has("node");
 		const pmOk = pm === "npm" ? nodeOk : has(pm);
-		const others = ["npm", "pnpm", "yarn"]
-			.filter((m) => m !== pm)
-			.join(" or ");
+		const others = ["npm", "pnpm", "yarn"].filter((m) => m !== pm).join(" or ");
 		if (nodeOk && pmOk) {
 			preferences.push(
 				projectCtx.pm_source === "declared"
@@ -903,9 +845,7 @@ async function detectTools(cwd: string): Promise<{
 					: `use node with ${pm} for JS deps and scripts (project lockfile detected); do not use ${others} here`,
 			);
 		} else if (!nodeOk) {
-			preferences.push(
-				`this project needs node and ${pm} but node is not installed on PATH`,
-			);
+			preferences.push(`this project needs node and ${pm} but node is not installed on PATH`);
 		} else {
 			preferences.push(
 				`node is installed but ${pm} is not on PATH; install it before running install scripts`,
@@ -938,7 +878,11 @@ async function detectTools(cwd: string): Promise<{
 	// (the "instead of" phrasing is scoped to the named role, not a blanket
 	// ban on the classic command's other uses).
 	const modernPrefs: Array<[string, string, string]> = [
-		["rg", "grep", "text search (recursive, respects .gitignore); pass an explicit path or file list to avoid stdin fallback in sandboxed environments"],
+		[
+			"rg",
+			"grep",
+			"text search (recursive, respects .gitignore); pass an explicit path or file list to avoid stdin fallback in sandboxed environments",
+		],
 		["fd", "find", "file and directory lookup (respects .gitignore)"],
 		["bat", "cat", "reading files (syntax-highlighted, paged)"],
 		["eza", "ls", "directory listing (icons, git status columns)"],
@@ -973,17 +917,13 @@ async function detectTools(cwd: string): Promise<{
 		);
 	}
 	if (has("difft")) {
-		preferences.push(
-			"use difft instead of plain diff for structural code diffs",
-		);
+		preferences.push("use difft instead of plain diff for structural code diffs");
 	}
 	if (has("gh")) {
 		preferences.push("use gh instead of raw API calls for GitHub operations");
 	}
 	if (has("yq")) {
-		preferences.push(
-			"use yq instead of sed/awk for YAML/TOML/XML processing",
-		);
+		preferences.push("use yq instead of sed/awk for YAML/TOML/XML processing");
 	}
 	if (has("xh")) {
 		preferences.push(
@@ -1049,9 +989,7 @@ function xmlEscape(s: string): string {
 /**
  * Gather all environment information
  */
-export async function gatherEnvironment(
-	cwd: string,
-): Promise<EnvironmentInfo> {
+export async function gatherEnvironment(cwd: string): Promise<EnvironmentInfo> {
 	const ci = detectCI();
 	const { tools, preferences } = await detectTools(cwd);
 	const cpu = detectCpu();
@@ -1097,9 +1035,7 @@ export function formatEnvironment(info: EnvironmentInfo): string {
 			? info.os.version
 			: `${platformLabel || info.os.platform} ${info.os.release}`;
 
-const systemLines = [
-		`<os>${xmlEscape(osDisplay)} (${info.os.arch})</os>`,
-	];
+	const systemLines = [`<os>${xmlEscape(osDisplay)} (${info.os.arch})</os>`];
 	if (info.cpu) {
 		const threads = info.cpuThreads ? `, ${info.cpuThreads} threads` : "";
 		systemLines.push(`<cpu>${xmlEscape(info.cpu)}${threads}</cpu>`);
@@ -1118,9 +1054,7 @@ const systemLines = [
 	if (info.isDocker) envTags.push("Docker");
 	if (info.isCI) envTags.push(`CI:${info.ciPlatform}`);
 	if (envTags.length > 0) {
-		systemLines.push(
-			`<runtime-environment>${xmlEscape(envTags.join(","))}</runtime-environment>`,
-		);
+		systemLines.push(`<runtime-environment>${xmlEscape(envTags.join(","))}</runtime-environment>`);
 	}
 
 	sections.push(`<system>\n${systemLines.join("\n")}\n</system>`);
@@ -1132,9 +1066,7 @@ const systemLines = [
 
 	// Package Manager (if detected)
 	if (info.packageManager) {
-		sections.push(
-			`<package-manager>${xmlEscape(info.packageManager)}</package-manager>`,
-		);
+		sections.push(`<package-manager>${xmlEscape(info.packageManager)}</package-manager>`);
 	}
 
 	// Git repo membership is detected but intentionally not injected —
@@ -1143,19 +1075,14 @@ const systemLines = [
 	// Tools (available dev tools with versions)
 	if (info.tools.length > 0) {
 		const toolLines = info.tools
-			.map(
-				(t) =>
-					`  <tool name="${xmlEscape(t.name)}" version="${xmlEscape(t.version)}"/>`,
-			)
+			.map((t) => `  <tool name="${xmlEscape(t.name)}" version="${xmlEscape(t.version)}"/>`)
 			.join("\n");
 		sections.push(`<tools>\n${toolLines}\n</tools>`);
 	}
 
 	// Preferences (based on available tools)
 	if (info.preferences.length > 0) {
-		const prefLines = info.preferences
-			.map((p) => `  <prefer>${xmlEscape(p)}</prefer>`)
-			.join("\n");
+		const prefLines = info.preferences.map((p) => `  <prefer>${xmlEscape(p)}</prefer>`).join("\n");
 		sections.push(`<preferences>\n${prefLines}\n</preferences>`);
 	}
 
@@ -1169,24 +1096,16 @@ const systemLines = [
 			);
 		}
 		if (info.projectConfig.nodeVersion) {
-			configLines.push(
-				`<node-version>${xmlEscape(info.projectConfig.nodeVersion)}</node-version>`,
-			);
+			configLines.push(`<node-version>${xmlEscape(info.projectConfig.nodeVersion)}</node-version>`);
 		}
 		if (info.projectConfig.testRunner) {
-			configLines.push(
-				`<test-runner>${xmlEscape(info.projectConfig.testRunner)}</test-runner>`,
-			);
+			configLines.push(`<test-runner>${xmlEscape(info.projectConfig.testRunner)}</test-runner>`);
 		}
 		if (info.projectConfig.linter) {
-			configLines.push(
-				`<linter>${xmlEscape(info.projectConfig.linter)}</linter>`,
-			);
+			configLines.push(`<linter>${xmlEscape(info.projectConfig.linter)}</linter>`);
 		}
 		if (info.projectConfig.formatter) {
-			configLines.push(
-				`<formatter>${xmlEscape(info.projectConfig.formatter)}</formatter>`,
-			);
+			configLines.push(`<formatter>${xmlEscape(info.projectConfig.formatter)}</formatter>`);
 		}
 		if (info.projectConfig.typescriptVersion) {
 			configLines.push(
@@ -1197,9 +1116,7 @@ const systemLines = [
 			configLines.push("<monorepo>true</monorepo>");
 		}
 		if (info.projectConfig.ciConfigs.length > 0) {
-			configLines.push(
-				`<ci>${xmlEscape(info.projectConfig.ciConfigs.join(", "))}</ci>`,
-			);
+			configLines.push(`<ci>${xmlEscape(info.projectConfig.ciConfigs.join(", "))}</ci>`);
 		}
 		if (info.projectConfig.editorConfig) {
 			configLines.push(
@@ -1209,26 +1126,17 @@ const systemLines = [
 		if (info.projectConfig.tsconfigStrict) {
 			configLines.push("<tsconfig-strict>true</tsconfig-strict>");
 		}
-		if (
-			info.projectConfig.npmScripts &&
-			info.projectConfig.npmScripts.length > 0
-		) {
+		if (info.projectConfig.npmScripts && info.projectConfig.npmScripts.length > 0) {
 			configLines.push(
 				`<npm-scripts>${xmlEscape(info.projectConfig.npmScripts.join(", "))}</npm-scripts>`,
 			);
 		}
-		if (
-			info.projectConfig.databases &&
-			info.projectConfig.databases.length > 0
-		) {
+		if (info.projectConfig.databases && info.projectConfig.databases.length > 0) {
 			configLines.push(
 				`<databases>${xmlEscape(info.projectConfig.databases.join(", "))}</databases>`,
 			);
 		}
-		if (
-			info.projectConfig.automationTools &&
-			info.projectConfig.automationTools.length > 0
-		) {
+		if (info.projectConfig.automationTools && info.projectConfig.automationTools.length > 0) {
 			configLines.push(
 				`<automation>${xmlEscape(info.projectConfig.automationTools.join(", "))}</automation>`,
 			);
@@ -1238,9 +1146,7 @@ const systemLines = [
 		}
 
 		if (configLines.length > 0) {
-			sections.push(
-				`<project-config>\n${configLines.join("\n")}\n</project-config>`,
-			);
+			sections.push(`<project-config>\n${configLines.join("\n")}\n</project-config>`);
 		}
 	}
 

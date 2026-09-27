@@ -25,10 +25,7 @@ describe("before_agent_start host compatibility", () => {
 	const ctx = { cwd: import.meta.dir, hasUI: false };
 
 	it("appends the env block as an array section for OMP (systemPrompt: string[])", async () => {
-		const result = await handler(
-			{ systemPrompt: ["SECTION A", "SECTION B"] },
-			ctx,
-		);
+		const result = await handler({ systemPrompt: ["SECTION A", "SECTION B"] }, ctx);
 
 		expect(Array.isArray(result.systemPrompt)).toBe(true);
 		const sections = result.systemPrompt as string[];

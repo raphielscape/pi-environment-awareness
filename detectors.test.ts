@@ -177,9 +177,7 @@ describe("Environment Detection", () => {
 			createFile("bun.lockb", "");
 			const info = await gatherEnvironment(TEST_DIR);
 
-			expect(info.preferences).toEqual(
-				expect.arrayContaining([expect.stringContaining("bun")]),
-			);
+			expect(info.preferences).toEqual(expect.arrayContaining([expect.stringContaining("bun")]));
 		});
 
 		it("should detect bun.lock for JS projects", async () => {
@@ -190,9 +188,7 @@ describe("Environment Detection", () => {
 			// to package.json's node-with-npm default
 			expect(info.preferences).toEqual(
 				expect.arrayContaining([
-					expect.stringContaining(
-						"use bun for JS deps and scripts (project has bun lockfile)",
-					),
+					expect.stringContaining("use bun for JS deps and scripts (project has bun lockfile)"),
 				]),
 			);
 			expect(info.preferences).not.toEqual(
@@ -204,53 +200,40 @@ describe("Environment Detection", () => {
 			createFile("package-lock.json", "{}");
 			const info = await gatherEnvironment(TEST_DIR);
 
-			expect(info.preferences).toEqual(
-				expect.arrayContaining([expect.stringContaining("npm")]),
-			);
+			expect(info.preferences).toEqual(expect.arrayContaining([expect.stringContaining("npm")]));
 		});
 
 		it("should detect pnpm-lock.yaml for pnpm projects", async () => {
 			createFile("pnpm-lock.yaml", "");
 			const info = await gatherEnvironment(TEST_DIR);
 
-			expect(info.preferences).toEqual(
-				expect.arrayContaining([expect.stringContaining("pnpm")]),
-			);
+			expect(info.preferences).toEqual(expect.arrayContaining([expect.stringContaining("pnpm")]));
 		});
 
 		it("should detect yarn.lock for yarn projects", async () => {
 			createFile("yarn.lock", "");
 			const info = await gatherEnvironment(TEST_DIR);
 
-			expect(info.preferences).toEqual(
-				expect.arrayContaining([expect.stringContaining("yarn")]),
-			);
+			expect(info.preferences).toEqual(expect.arrayContaining([expect.stringContaining("yarn")]));
 		});
 
 		it("should detect pyproject.toml for uv projects", async () => {
 			createFile("pyproject.toml", "[project]\nname = 'test'");
 			const info = await gatherEnvironment(TEST_DIR);
 
-			expect(info.preferences).toEqual(
-				expect.arrayContaining([expect.stringContaining("uv")]),
-			);
+			expect(info.preferences).toEqual(expect.arrayContaining([expect.stringContaining("uv")]));
 		});
 
 		it("should detect requirements.txt for pip projects", async () => {
 			createFile("requirements.txt", "requests==2.28.0");
 			const info = await gatherEnvironment(TEST_DIR);
 
-			expect(info.preferences).toEqual(
-				expect.arrayContaining([expect.stringContaining("pip")]),
-			);
+			expect(info.preferences).toEqual(expect.arrayContaining([expect.stringContaining("pip")]));
 		});
 
 		it("should prefer declared packageManager over deno config files", async () => {
 			createFile("deno.json", "{}");
-			createFile(
-				"package.json",
-				JSON.stringify({ packageManager: "pnpm@9.1.0" }),
-			);
+			createFile("package.json", JSON.stringify({ packageManager: "pnpm@9.1.0" }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			// The declaration is the project's own statement of toolchain;
@@ -264,10 +247,7 @@ describe("Environment Detection", () => {
 
 		it("should prefer declared packageManager over stale lockfile", async () => {
 			createFile("package-lock.json", "{}"); // stale: project moved to pnpm
-			createFile(
-				"package.json",
-				JSON.stringify({ packageManager: "pnpm@9.1.0" }),
-			);
+			createFile("package.json", JSON.stringify({ packageManager: "pnpm@9.1.0" }));
 			const info = await gatherEnvironment(TEST_DIR);
 			const hasPnpm = info.tools.some((t) => t.name === "pnpm");
 			const hasNode = info.tools.some((t) => t.name === "node");
@@ -290,10 +270,7 @@ describe("Environment Detection", () => {
 
 		it("should prefer declared bun over stale lockfile", async () => {
 			createFile("package-lock.json", "{}"); // stale: project moved to bun
-			createFile(
-				"package.json",
-				JSON.stringify({ packageManager: "bun@1.2.3" }),
-			);
+			createFile("package.json", JSON.stringify({ packageManager: "bun@1.2.3" }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			expect(info.preferences).toContain(
@@ -303,17 +280,12 @@ describe("Environment Detection", () => {
 
 		it("should fall back to lockfiles for unsupported declared pm", async () => {
 			createFile("package-lock.json", "{}");
-			createFile(
-				"package.json",
-				JSON.stringify({ packageManager: "exotic@1.0.0" }),
-			);
+			createFile("package.json", JSON.stringify({ packageManager: "exotic@1.0.0" }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			expect(info.preferences).toEqual(
 				expect.arrayContaining([
-					expect.stringContaining(
-						"use node with npm for JS deps and scripts (project lockfile",
-					),
+					expect.stringContaining("use node with npm for JS deps and scripts (project lockfile"),
 				]),
 			);
 		});
@@ -389,9 +361,7 @@ describe("Environment Detection", () => {
 			const info = await gatherEnvironment(TEST_DIR);
 
 			// Should mention the bun lockfile specifically
-			const bunPref = info.preferences.find((p) =>
-				p.includes("bun lockfile"),
-			);
+			const bunPref = info.preferences.find((p) => p.includes("bun lockfile"));
 			if (info.tools.some((t) => t.name === "bun")) {
 				expect(bunPref).toBeDefined();
 			}
@@ -717,9 +687,9 @@ describe("Environment Detection", () => {
 				[
 					"{",
 					"  // compiler options",
-					"  \"compilerOptions\": {",
-					"    \"strict\": true, // the whole point",
-					"    \"target\": \"es2022\",",
+					'  "compilerOptions": {',
+					'    "strict": true, // the whole point',
+					'    "target": "es2022",',
 					"  },",
 					"}",
 				].join("\n"),
@@ -730,10 +700,7 @@ describe("Environment Detection", () => {
 		});
 
 		it("parses tsconfig with block comments", () => {
-			createFile(
-				"tsconfig.json",
-				'{\n  /* strict on */ "compilerOptions": { "strict": true }\n}',
-			);
+			createFile("tsconfig.json", '{\n  /* strict on */ "compilerOptions": { "strict": true }\n}');
 			return gatherEnvironment(TEST_DIR).then((info) => {
 				expect(info.projectConfig?.tsconfigStrict).toBe(true);
 			});
@@ -767,20 +734,14 @@ describe("Environment Detection", () => {
 
 		it("prefers .nvmrc over package.json engines", async () => {
 			createFile(".nvmrc", "22.12.0");
-			createFile(
-				"package.json",
-				JSON.stringify({ engines: { node: ">=20" } }),
-			);
+			createFile("package.json", JSON.stringify({ engines: { node: ">=20" } }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			expect(info.projectConfig?.nodeVersion).toBe("22.12.0");
 		});
 
 		it("falls back to engines.node when no pin file", async () => {
-			createFile(
-				"package.json",
-				JSON.stringify({ engines: { node: ">=20 <23" } }),
-			);
+			createFile("package.json", JSON.stringify({ engines: { node: ">=20 <23" } }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			expect(info.projectConfig?.nodeVersion).toBe(">=20 <23");
@@ -788,10 +749,7 @@ describe("Environment Detection", () => {
 
 		it("skips comment-only .nvmrc and uses engines", async () => {
 			createFile(".nvmrc", "# lts/hydrogen\n");
-			createFile(
-				"package.json",
-				JSON.stringify({ engines: { node: ">=20" } }),
-			);
+			createFile("package.json", JSON.stringify({ engines: { node: ">=20" } }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			expect(info.projectConfig?.nodeVersion).toBe(">=20");
@@ -814,10 +772,7 @@ describe("Environment Detection", () => {
 		});
 
 		it("keeps short lists verbatim", async () => {
-			createFile(
-				"package.json",
-				JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }),
-			);
+			createFile("package.json", JSON.stringify({ scripts: { dev: "vite", build: "vite build" } }));
 			const info = await gatherEnvironment(TEST_DIR);
 
 			expect(info.projectConfig?.npmScripts).toEqual(["dev", "build"]);
@@ -825,12 +780,7 @@ describe("Environment Detection", () => {
 	});
 
 	describe("XDG Base Directories", () => {
-		const XDG_VARS = [
-			"XDG_CONFIG_HOME",
-			"XDG_DATA_HOME",
-			"XDG_CACHE_HOME",
-			"XDG_STATE_HOME",
-		];
+		const XDG_VARS = ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"];
 		const savedEnv: Record<string, string | undefined> = {};
 
 		beforeEach(() => {
@@ -946,9 +896,7 @@ describe("Environment Detection", () => {
 
 			info.memoryLimitBytes = 536870912;
 			let xml = formatEnvironment(info);
-			expect(xml).toContain(
-				"<memory-limit>512MiB (cgroup limit)</memory-limit>",
-			);
+			expect(xml).toContain("<memory-limit>512MiB (cgroup limit)</memory-limit>");
 
 			delete info.memoryLimitBytes;
 			xml = formatEnvironment(info);
